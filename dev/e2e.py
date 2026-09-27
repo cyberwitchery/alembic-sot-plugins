@@ -16,9 +16,8 @@ import urllib.error
 import urllib.request
 
 from core.models import DataSource
-from users.models import Token, User
-
 from netbox_alembic.models import Backend, Flow
+from users.models import Token, User
 
 API = "http://localhost:8080/api"
 SUFFIX = secrets.token_hex(3)

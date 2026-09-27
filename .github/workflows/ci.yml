@@ -26,9 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/ruff-action@v3
-        with:
-          args: check alembic-runner netbox-alembic
-      - run: ruff format --check alembic-runner netbox-alembic
+      - run: ruff format --check
 
   runner:
     name: alembic-runner (py${{ matrix.python-version }})

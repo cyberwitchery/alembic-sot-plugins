@@ -1,0 +1,6 @@
+line-length = 100
+target-version = "py310"
+extend-exclude = ["netbox-alembic/netbox_alembic/migrations"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
