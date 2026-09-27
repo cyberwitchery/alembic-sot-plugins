@@ -28,7 +28,6 @@ class Migration(migrations.Migration):
                 ('custom_field_data', models.JSONField(blank=True, default=dict, encoder=utilities.json.CustomFieldJSONEncoder)),
                 ('name', models.CharField(max_length=100, unique=True)),
                 ('kind', models.CharField(max_length=30)),
-                ('is_self', models.BooleanField(default=False)),
                 ('config', models.JSONField(blank=True, default=dict)),
                 ('credential', models.CharField(blank=True, max_length=100)),
                 ('external_adapter', models.CharField(blank=True, max_length=100)),

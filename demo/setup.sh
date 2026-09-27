@@ -19,9 +19,9 @@ echo "starting netbox (the first start runs migrations, a few minutes)"
   || { echo "netbox did not start; see demo/compose logs netbox" >&2; exit 1; }
 
 token=$("$here/compose" exec -T netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py \
-  shell < "$here/seed.py" 2>/dev/null | sed -n 's/^SELF_TOKEN //p')
+  shell < "$here/seed.py" 2>/dev/null | sed -n 's/^NETBOX_TOKEN //p')
 [ -n "$token" ] || { echo "seeding failed; run demo/seed.py by hand to see why" >&2; exit 1; }
-printf '%s' "$token" > "$here/.state/self-token"
+printf '%s' "$token" > "$here/.state/netbox-token"
 
 # the worker reads the service token from its environment.
 "$here/compose" up -d --force-recreate --wait netbox-worker >/dev/null 2>&1

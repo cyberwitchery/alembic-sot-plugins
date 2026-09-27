@@ -26,7 +26,6 @@ class BackendPanel(panels.ObjectAttributesPanel):
     title = _("Backend")
     name = attrs.TextAttr("name")
     kind = attrs.ChoiceAttr("kind")
-    is_self = attrs.BooleanAttr("is_self", label=_("This NetBox"))
     credential = attrs.TextAttr("credential", style="font-monospace")
     external_adapter = attrs.TextAttr("external_adapter", style="font-monospace")
     description = attrs.TextAttr("description")
@@ -199,7 +198,7 @@ class FlowPlanView(ActionView):
     def perform(self, flow, user):
         kind = self.request.POST.get("kind", RunKindChoices.PLAN)
         if kind not in (RunKindChoices.PLAN, RunKindChoices.DRIFT):
-            raise ValidationError(_("unknown run kind"))
+            raise ValidationError(_("Unknown run kind."))
         return actions.request_run(flow, user, kind)
 
 

@@ -9,12 +9,12 @@ from .models import Backend, BackendKindChoices, Flow, Run, RunKindChoices, RunS
 
 
 class BackendForm(NetBoxModelForm):
-    config = JSONField(label=_("config"), required=False)
+    config = JSONField(label=_("Config"), required=False)
     comments = CommentField()
 
     fieldsets = (
-        FieldSet("name", "kind", "is_self", "description", "tags", name=_("backend")),
-        FieldSet("config", "credential", "external_adapter", name=_("connection")),
+        FieldSet("name", "kind", "description", "tags", name=_("Backend")),
+        FieldSet("config", "credential", "external_adapter", name=_("Connection")),
     )
 
     class Meta:
@@ -22,7 +22,6 @@ class BackendForm(NetBoxModelForm):
         fields = (
             "name",
             "kind",
-            "is_self",
             "config",
             "credential",
             "external_adapter",
@@ -34,9 +33,13 @@ class BackendForm(NetBoxModelForm):
 
 class BackendFilterForm(NetBoxModelFilterSetForm):
     model = Backend
-    fieldsets = (FieldSet("q", "filter_id", "tag"), FieldSet("kind", "is_self"))
+    fieldsets = (
+        FieldSet("q", "filter_id", "tag"),
+        FieldSet(
+            "kind",
+        ),
+    )
     kind = forms.MultipleChoiceField(choices=BackendKindChoices, required=False)
-    is_self = forms.NullBooleanField(required=False, label=_("this netbox"))
 
 
 class FlowForm(NetBoxModelForm):
@@ -45,9 +48,9 @@ class FlowForm(NetBoxModelForm):
     comments = CommentField()
 
     fieldsets = (
-        FieldSet("name", "description", "tags", name=_("flow")),
-        FieldSet("data_source", "root", "inventory", name=_("source")),
-        FieldSet("target", "allow_delete", "no_adopt", "state_key", name=_("target")),
+        FieldSet("name", "description", "tags", name=_("Flow")),
+        FieldSet("data_source", "root", "inventory", name=_("Source")),
+        FieldSet("target", "allow_delete", "no_adopt", "state_key", name=_("Target")),
     )
 
     class Meta:

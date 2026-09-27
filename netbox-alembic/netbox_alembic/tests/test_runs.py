@@ -19,9 +19,7 @@ PLUGIN_SETTINGS = {
     "netbox_alembic": {
         **AlembicConfig.default_settings,
         "work_root": "/tmp/netbox-alembic-tests",
-        "self_url": "http://netbox:8080",
-        "self_credential": "self",
-        "credentials": {"self": {"token": "TEST_SELF_TOKEN"}, "other": {"token": "TEST_OTHER"}},
+        "credentials": {"netbox": {"token": "TEST_NETBOX_TOKEN"}, "other": {"token": "TEST_OTHER"}},
         "external_adapters": {"store": "/usr/local/bin/alembic-adapter-store"},
     }
 }
@@ -94,7 +92,9 @@ class RunTestCase(TestCase):
                 hash="0" * 64,
                 last_updated=timezone.now(),
             )
-        cls.target = Backend.objects.create(name="self", kind="netbox", is_self=True)
+        cls.target = Backend.objects.create(
+            name="netbox", kind="netbox", config={"url": "http://netbox:8080"}, credential="netbox"
+        )
         cls.flow = Flow.objects.create(
             name="sites",
             data_source=cls.source,
@@ -104,7 +104,7 @@ class RunTestCase(TestCase):
         )
 
     def setUp(self):
-        patcher = mock.patch.dict("os.environ", {"TEST_SELF_TOKEN": "t", "TEST_OTHER": "o"})
+        patcher = mock.patch.dict("os.environ", {"TEST_NETBOX_TOKEN": "t", "TEST_OTHER": "o"})
         patcher.start()
         self.addCleanup(patcher.stop)
         sync = mock.patch.object(DataSource, "sync")
@@ -172,7 +172,7 @@ class PlanTests(RunTestCase):
         with mock.patch.dict("os.environ", {}, clear=True):
             run = self.plan()
         self.assertEqual(run.status, "failed")
-        self.assertIn("TEST_SELF_TOKEN", run.error)
+        self.assertIn("TEST_NETBOX_TOKEN", run.error)
 
     def test_one_run_in_progress_per_flow(self):
         self.request()
@@ -287,7 +287,6 @@ class BackendValidationTests(TestCase):
 
     def test_valid(self):
         self.check(kind="nautobot", config={"url": "https://n"}, credential="other")
-        self.check(kind="netbox", is_self=True)
         self.check(kind="external", external_adapter="store", config={"setup": {"a": 1}})
 
     def test_invalid(self):
@@ -297,8 +296,6 @@ class BackendValidationTests(TestCase):
             {"kind": "external", "external_adapter": "store", "config": {"env": {"A": "b"}}},
             {"kind": "external", "external_adapter": "nope"},
             {"kind": "netbox", "external_adapter": "store"},
-            {"kind": "nautobot", "is_self": True},
-            {"kind": "netbox", "is_self": True, "config": {"url": "x"}},
             {"kind": "netbox", "credential": "nope"},
         ]
         for fields in cases:

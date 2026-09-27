@@ -9,7 +9,7 @@ for name in ("engineer", "reviewer"):
     user = User.objects.create_user(username=name, password="demo", is_superuser=True)
 
 service = User.objects.create_user(username="alembic", is_superuser=True)
-token = Token(user=service, write_enabled=True, description="alembic runs against this netbox")
+token = Token(user=service, write_enabled=True, description="alembic writes to netbox with this")
 token.save()
 
 source = DataSource.objects.create(
@@ -21,14 +21,18 @@ source = DataSource.objects.create(
 source.sync()
 
 target = Backend.objects.create(
-    name="this netbox", kind="netbox", is_self=True, description="alembic writes here"
+    name="netbox",
+    kind="netbox",
+    config={"url": "http://netbox:8080"},
+    credential="netbox",
+    description="this netbox, as the worker reaches it",
 )
 Flow.objects.create(
     name="fabric",
     data_source=source,
     inventory="fabric.yaml",
     target=target,
-    description="the fabric inventory, converged into this netbox",
+    description="the fabric inventory, converged into netbox",
 )
 
-print(f"SELF_TOKEN nbt_{token.key}.{token.token}")
+print(f"NETBOX_TOKEN nbt_{token.key}.{token.token}")

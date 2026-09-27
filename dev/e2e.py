@@ -91,8 +91,6 @@ def plan(token, flow_id, kind="plan"):
 requester = User.objects.create_user(username=f"e2e-requester-{SUFFIX}", is_superuser=True)
 approver = User.objects.create_user(username=f"e2e-approver-{SUFFIX}", is_superuser=True)
 req, app = token_for(requester), token_for(approver)
-# the worker reads the self token from its environment; e2e.sh starts it with this one.
-self_token = os.environ.get("E2E_SELF_TOKEN") or sys.exit("E2E_SELF_TOKEN is not set")
 
 os.makedirs(INVENTORY_DIR)
 with open(f"{INVENTORY_DIR}/inventory.yaml", "w") as f:
@@ -101,7 +99,8 @@ source = DataSource.objects.create(
     name=f"e2e-{SUFFIX}", type="local", source_url=f"file://{INVENTORY_DIR}"
 )
 target = Backend.objects.get_or_create(
-    name="this netbox (e2e)", defaults={"kind": "netbox", "is_self": True}
+    name="netbox (e2e)",
+    defaults={"kind": "netbox", "config": {"url": "http://netbox:8080"}, "credential": "netbox"},
 )[0]
 flow = Flow.objects.create(
     name=f"e2e-{SUFFIX}", data_source=source, inventory="inventory.yaml", target=target

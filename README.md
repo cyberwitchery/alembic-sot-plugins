@@ -11,8 +11,8 @@ apply.
 
 ## how a run goes
 
-a **backend** is something alembic plans against: this netbox, or another
-system. a **flow** names an inventory in a netbox data source and a target
+a **backend** is something alembic plans against: another system, or this
+netbox itself, reached through its own rest api like any other. a **flow** names an inventory in a netbox data source and a target
 backend. a **run** is one plan of a flow and at most one apply of it.
 
 ```text
@@ -66,14 +66,11 @@ PLUGINS_CONFIG = {
         "work_root": "/var/lib/netbox-alembic",
         # identity state. "local" keeps it in each flow's directory.
         "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
-        # this netbox, as the worker reaches it, and the credential to use.
-        "self_url": "http://netbox:8080",
-        "self_credential": "self",
         # credentials by name: each value names worker environment variables.
         # "token" feeds the adapter's own token variable (NETBOX_TOKEN, ...);
         # "env" sets adapter variables for external adapters.
         "credentials": {
-            "self": {"token": "ALEMBIC_SELF_TOKEN"},
+            "netbox": {"token": "ALEMBIC_NETBOX_TOKEN"},
             "lab-nautobot": {"token": "LAB_NAUTOBOT_TOKEN"},
         },
         # external adapter binaries by name. a backend names one, never a path.

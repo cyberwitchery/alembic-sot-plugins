@@ -8,13 +8,12 @@ from .models import Backend, Flow, Run
 class BackendTable(NetBoxTable):
     name = tables.Column(linkify=True)
     kind = columns.ChoiceFieldColumn()
-    is_self = columns.BooleanColumn(verbose_name=_("this netbox"))
     tags = columns.TagColumn(url_name="plugins:netbox_alembic:backend_list")
 
     class Meta(NetBoxTable.Meta):
         model = Backend
-        fields = ("pk", "id", "name", "kind", "is_self", "credential", "description", "tags")
-        default_columns = ("name", "kind", "is_self", "description")
+        fields = ("pk", "id", "name", "kind", "credential", "description", "tags")
+        default_columns = ("name", "kind", "credential", "description")
 
 
 class FlowTable(NetBoxTable):
@@ -42,7 +41,7 @@ class FlowTable(NetBoxTable):
 
 
 class RunTable(NetBoxTable):
-    id = tables.Column(linkify=True, verbose_name=_("run"))
+    id = tables.Column(linkify=True, verbose_name=_("Run"))
     flow = tables.Column(linkify=True)
     kind = columns.ChoiceFieldColumn()
     status = columns.ChoiceFieldColumn()

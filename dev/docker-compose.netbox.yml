@@ -84,7 +84,7 @@ services:
       SKIP_SUPERUSER: "false"
       API_TOKEN_PEPPER_1: "netbox-alembic-pepper-0123456789abcdef0123456789abcdef0123456789"
       PYTHONPATH: /opt/plugins/netbox-alembic:/opt/plugins/alembic-runner/src
-      ALEMBIC_SELF_TOKEN: ${ALEMBIC_SELF_TOKEN:-}
+      ALEMBIC_NETBOX_TOKEN: ${ALEMBIC_NETBOX_TOKEN:-}
     volumes:
       - ./netbox/plugins.py:/etc/netbox/config/plugins.py:ro
       - ../netbox-alembic:/opt/plugins/netbox-alembic
@@ -131,7 +131,7 @@ services:
       DB_WAIT_DEBUG: 1
       API_TOKEN_PEPPER_1: "netbox-alembic-pepper-0123456789abcdef0123456789abcdef0123456789"
       PYTHONPATH: /opt/plugins/netbox-alembic:/opt/plugins/alembic-runner/src
-      ALEMBIC_SELF_TOKEN: ${ALEMBIC_SELF_TOKEN:-}
+      ALEMBIC_NETBOX_TOKEN: ${ALEMBIC_NETBOX_TOKEN:-}
     volumes:
       - ./netbox/plugins.py:/etc/netbox/config/plugins.py:ro
       - ../netbox-alembic:/opt/plugins/netbox-alembic

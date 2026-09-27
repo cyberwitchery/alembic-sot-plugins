@@ -11,9 +11,17 @@ from utilities.choices import ChoiceSet
 
 from .settings import setting
 
+KIND_LABELS = {
+    "netbox": "NetBox",
+    "nautobot": "Nautobot",
+    "infrahub": "Infrahub",
+    "peeringdb": "PeeringDB",
+    "external": "External adapter",
+}
+
 
 class BackendKindChoices(ChoiceSet):
-    CHOICES = [(kind, kind) for kind in KINDS]
+    CHOICES = [(kind, KIND_LABELS[kind]) for kind in KINDS]
 
 
 class RunKindChoices(ChoiceSet):
@@ -47,34 +55,29 @@ class RunStatusChoices(ChoiceSet):
 
 
 class Backend(NetBoxModel):
-    """a system alembic can plan against: this netbox, or another one."""
+    """a system alembic can plan against."""
 
     name = models.CharField(verbose_name=_("name"), max_length=100, unique=True)
     kind = models.CharField(verbose_name=_("kind"), max_length=30, choices=BackendKindChoices)
-    is_self = models.BooleanField(
-        verbose_name=_("this netbox"),
-        default=False,
-        help_text=_("target this netbox instance; url and credential come from plugin settings"),
-    )
     config = models.JSONField(
         verbose_name=_("config"),
         default=dict,
         blank=True,
-        help_text=_("the non-secret part of an alembic backend config, without `backend:`"),
+        help_text=_("The non-secret part of an alembic backend config, without the backend key."),
     )
     credential = models.CharField(
         verbose_name=_("credential"),
         max_length=100,
         blank=True,
         help_text=_(
-            "name of a credential in plugin settings; the secret stays out of the database"
+            "Name of a credential in plugin settings. The secret stays out of the database."
         ),
     )
     external_adapter = models.CharField(
         verbose_name=_("external adapter"),
         max_length=100,
         blank=True,
-        help_text=_("name of an adapter binary in plugin settings, for external backends"),
+        help_text=_("Name of an adapter binary in plugin settings, for external backends."),
     )
     description = models.CharField(verbose_name=_("description"), max_length=200, blank=True)
     comments = models.TextField(verbose_name=_("comments"), blank=True)
@@ -89,9 +92,6 @@ class Backend(NetBoxModel):
 
     def get_absolute_url(self):
         return reverse("plugins:netbox_alembic:backend", args=[self.pk])
-
-    def get_kind_color(self):
-        return "blue" if self.is_self else "gray"
 
     def clean(self):
         super().clean()
@@ -108,13 +108,6 @@ class Backend(NetBoxModel):
                     )
                 }
             )
-        if self.is_self:
-            if self.kind != "netbox":
-                raise ValidationError({"is_self": _("This NetBox is a NetBox backend.")})
-            if "url" in self.config or self.credential:
-                raise ValidationError(
-                    {"is_self": _("This NetBox takes its URL and credential from plugin settings.")}
-                )
         if self.kind == "external":
             if self.external_adapter not in setting("external_adapters"):
                 raise ValidationError(
@@ -142,12 +135,14 @@ class Flow(NetBoxModel):
         verbose_name=_("root"),
         max_length=500,
         blank=True,
-        help_text=_("directory inside the data source whose files a run snapshots; empty is all"),
+        help_text=_(
+            "Directory inside the data source whose files a run snapshots. Empty means all."
+        ),
     )
     inventory = models.CharField(
         verbose_name=_("inventory"),
         max_length=500,
-        help_text=_("path of the inventory file, relative to the root"),
+        help_text=_("Path of the inventory file, relative to the root."),
     )
     target = models.ForeignKey(
         to=Backend,
@@ -159,13 +154,13 @@ class Flow(NetBoxModel):
     no_adopt = models.BooleanField(
         verbose_name=_("no adopt"),
         default=False,
-        help_text=_("do not bind existing backend objects to declared ones by key"),
+        help_text=_("Do not bind existing backend objects to declared ones by key."),
     )
     state_key = models.CharField(
         verbose_name=_("state key"),
         max_length=100,
         blank=True,
-        help_text=_("postgres state workspace; defaults to flow-<id>"),
+        help_text=_("Workspace for PostgreSQL state. Defaults to flow-7 for flow 7."),
     )
     description = models.CharField(verbose_name=_("description"), max_length=200, blank=True)
     comments = models.TextField(verbose_name=_("comments"), blank=True)
@@ -235,13 +230,13 @@ class Run(JobsMixin, ChangeLoggedModel):
     finished_at = models.DateTimeField(verbose_name=_("finished at"), null=True, blank=True)
 
     input = models.JSONField(verbose_name=_("input"), default=dict, blank=True, editable=False)
-    input_sha256 = models.CharField(verbose_name=_("input sha-256"), max_length=64, blank=True)
+    input_sha256 = models.CharField(verbose_name=_("input SHA-256"), max_length=64, blank=True)
     # the plan is kept as the bytes alembic wrote: the approval covers their hash,
     # and a json column would not give the same bytes back.
     plan = models.TextField(verbose_name=_("plan"), blank=True, editable=False)
-    plan_sha256 = models.CharField(verbose_name=_("plan sha-256"), max_length=64, blank=True)
+    plan_sha256 = models.CharField(verbose_name=_("plan SHA-256"), max_length=64, blank=True)
     approved_sha256 = models.CharField(
-        verbose_name=_("approved sha-256"), max_length=64, blank=True
+        verbose_name=_("approved SHA-256"), max_length=64, blank=True
     )
     summary = models.JSONField(verbose_name=_("summary"), default=dict, blank=True)
     drift_report = models.JSONField(verbose_name=_("drift report"), null=True, blank=True)

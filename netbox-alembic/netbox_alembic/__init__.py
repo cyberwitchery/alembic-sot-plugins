@@ -5,8 +5,8 @@ __version__ = "0.1.0"
 
 class AlembicConfig(PluginConfig):
     name = "netbox_alembic"
-    verbose_name = "alembic"
-    description = "plan, review and apply alembic runs"
+    verbose_name = "Alembic"
+    description = "Plan, review and apply alembic runs"
     version = __version__
     author = "cyberwitchery lab"
     author_email = "contact@cyberwitchery.com"
@@ -19,8 +19,6 @@ class AlembicConfig(PluginConfig):
         "state": {"backend": "local"},
         "credentials": {},
         "external_adapters": {},
-        "self_url": None,
-        "self_credential": None,
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
         "run_timeout_seconds": 1800,

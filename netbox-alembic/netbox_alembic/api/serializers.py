@@ -21,7 +21,6 @@ class BackendSerializer(NetBoxModelSerializer):
             "display",
             "name",
             "kind",
-            "is_self",
             "config",
             "credential",
             "external_adapter",

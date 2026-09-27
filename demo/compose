@@ -3,9 +3,9 @@
 here="$(cd "$(dirname "$0")" && pwd)"
 export NETBOX_PORT="${NETBOX_PORT:-8020}"
 export DEMO_REPO="$here/.repo"
-if [ -f "$here/.state/self-token" ]; then
-  ALEMBIC_SELF_TOKEN="$(cat "$here/.state/self-token")"
-  export ALEMBIC_SELF_TOKEN
+if [ -f "$here/.state/netbox-token" ]; then
+  ALEMBIC_NETBOX_TOKEN="$(cat "$here/.state/netbox-token")"
+  export ALEMBIC_NETBOX_TOKEN
 fi
 exec docker compose -f "$here/../dev/docker-compose.netbox.yml" -f "$here/docker-compose.demo.yml" \
   -p netbox-alembic-demo --project-directory "$here/../dev" "$@"

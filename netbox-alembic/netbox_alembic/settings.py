@@ -48,22 +48,14 @@ def _credential_env(kind, name):
 
 def runner_backend(backend):
     """the alembic view of a stored backend, with credentials from the worker environment."""
-    config = dict(backend.config)
-    credential = backend.credential
-    if backend.is_self:
-        url = setting("self_url")
-        credential = setting("self_credential")
-        if not url or not credential:
-            raise SettingsError("targeting this netbox needs self_url and self_credential")
-        config["url"] = url
-    env = _credential_env(backend.kind, credential) if credential else {}
+    env = _credential_env(backend.kind, backend.credential) if backend.credential else {}
     command = None
     if backend.kind == "external":
         adapters = setting("external_adapters")
         if backend.external_adapter not in adapters:
             raise SettingsError(f"no external adapter {backend.external_adapter!r} in settings")
         command = adapters[backend.external_adapter]
-    return RunnerBackend(backend.kind, config, env=env, command=command)
+    return RunnerBackend(backend.kind, dict(backend.config), env=env, command=command)
 
 
 def runner_flow(flow):
