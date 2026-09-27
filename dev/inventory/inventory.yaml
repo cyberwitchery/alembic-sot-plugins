@@ -1,0 +1,11 @@
+include:
+  - sites.yaml
+schema:
+  types:
+    dcim.site:
+      key:
+        slug: { type: slug }
+      fields:
+        name: { type: string }
+        slug: { type: slug }
+        status: { type: string }

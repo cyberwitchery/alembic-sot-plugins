@@ -1,0 +1,21 @@
+{% extends "ui/panels/_base.html" %}
+{% load i18n %}
+
+{% block panel_content %}
+  <div class="card-body">
+    {% if perms.netbox_alembic.add_run %}
+      <form action="{% url 'plugins:netbox_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="kind" value="plan">
+        <button type="submit" class="btn btn-primary">{% trans "plan" %}</button>
+      </form>
+      <form action="{% url 'plugins:netbox_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="kind" value="drift">
+        <button type="submit" class="btn btn-outline-secondary">{% trans "drift report" %}</button>
+      </form>
+    {% else %}
+      <span class="text-muted">{% trans "you may not start runs" %}</span>
+    {% endif %}
+  </div>
+{% endblock panel_content %}

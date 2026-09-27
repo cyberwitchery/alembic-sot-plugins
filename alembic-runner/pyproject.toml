@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "alembic-runner"
+version = "0.1.0"
+description = "run alembic plan, review and apply from a host application"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "cyberwitchery lab", email = "contact@cyberwitchery.com" }]
+keywords = ["alembic", "netbox", "nautobot", "network-automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Networking",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/cyberwitchery/alembic-sot-plugins"
+Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
+"alembic (core)" = "https://github.com/cyberwitchery/alembic"
+
+[project.optional-dependencies]
+dev = ["coverage[toml]", "ruff"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/alembic_runner"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.coverage.run]
+source = ["alembic_runner"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

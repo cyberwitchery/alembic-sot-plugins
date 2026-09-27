@@ -1,0 +1,10 @@
+{% extends "ui/panels/_base.html" %}
+{% load i18n %}
+
+{% block panel_content %}
+  {% if object.output %}
+    <pre class="card-body mb-0">{{ object.output }}</pre>
+  {% else %}
+    <div class="card-body text-muted">{% trans "no output yet" %}</div>
+  {% endif %}
+{% endblock panel_content %}

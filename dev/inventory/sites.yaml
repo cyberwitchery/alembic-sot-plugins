@@ -1,0 +1,11 @@
+schema:
+  types: {}
+objects:
+  - uid: "22222222-2222-2222-2222-000000000001"
+    type: dcim.site
+    key: { slug: ber1 }
+    attrs: { name: BER1, slug: ber1, status: active }
+  - uid: "22222222-2222-2222-2222-000000000002"
+    type: dcim.site
+    key: { slug: muc1 }
+    attrs: { name: MUC1, slug: muc1, status: planned }

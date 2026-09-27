@@ -1,0 +1,6 @@
+#!/bin/sh
+# docker compose for the dev netbox, from any directory. NETBOX_IMAGE picks the
+# netbox release; each release gets its own project, so their databases stay apart.
+image="${NETBOX_IMAGE:-docker.io/netboxcommunity/netbox:v4.6.2}"
+project="netbox-alembic-$(printf '%s' "${image##*:}" | tr -c 'a-z0-9' '-')"
+exec docker compose -f "$(dirname "$0")/docker-compose.netbox.yml" -p "${project%-}" "$@"
