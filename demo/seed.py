@@ -16,6 +16,9 @@ source = DataSource.objects.create(
     name="fabric",
     type="git",
     source_url="file:///opt/demo-repo",
+    # the netbox form always stores the backend's parameters; its detail page
+    # reads them and fails on null.
+    parameters={},
     description="the fabric inventory, in git",
 )
 source.sync()

@@ -96,7 +96,7 @@ os.makedirs(INVENTORY_DIR)
 with open(f"{INVENTORY_DIR}/inventory.yaml", "w") as f:
     f.write(inventory("planned"))
 source = DataSource.objects.create(
-    name=f"e2e-{SUFFIX}", type="local", source_url=f"file://{INVENTORY_DIR}"
+    name=f"e2e-{SUFFIX}", type="local", source_url=f"file://{INVENTORY_DIR}", parameters={}
 )
 target = Backend.objects.get_or_create(
     name="netbox (e2e)",
