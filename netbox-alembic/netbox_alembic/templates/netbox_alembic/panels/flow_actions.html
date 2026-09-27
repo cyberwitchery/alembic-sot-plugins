@@ -7,15 +7,15 @@
       <form action="{% url 'plugins:netbox_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
         {% csrf_token %}
         <input type="hidden" name="kind" value="plan">
-        <button type="submit" class="btn btn-primary">{% trans "plan" %}</button>
+        <button type="submit" class="btn btn-primary">{% trans "Plan" %}</button>
       </form>
       <form action="{% url 'plugins:netbox_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
         {% csrf_token %}
         <input type="hidden" name="kind" value="drift">
-        <button type="submit" class="btn btn-outline-secondary">{% trans "drift report" %}</button>
+        <button type="submit" class="btn btn-outline-secondary">{% trans "Drift report" %}</button>
       </form>
     {% else %}
-      <span class="text-muted">{% trans "you may not start runs" %}</span>
+      <span class="text-muted">{% trans "You may not start runs." %}</span>
     {% endif %}
   </div>
 {% endblock panel_content %}

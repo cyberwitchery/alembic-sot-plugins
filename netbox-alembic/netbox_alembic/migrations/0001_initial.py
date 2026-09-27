@@ -101,7 +101,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'runs',
                 'ordering': ('-created',),
                 'permissions': [('approve_run', 'approve or reject a run')],
-                'constraints': [models.UniqueConstraint(condition=models.Q(('status__in', ['applying', 'approved', 'awaiting_approval', 'pending', 'planning'])), fields=('flow',), name='netbox_alembic_run_one_active_per_flow', violation_error_message='this flow already has a run in progress')],
+                'constraints': [models.UniqueConstraint(condition=models.Q(('status__in', ['applying', 'approved', 'awaiting_approval', 'pending', 'planning'])), fields=('flow',), name='netbox_alembic_run_one_active_per_flow', violation_error_message='This flow already has a run in progress.')],
             },
             bases=(netbox.models.deletion.DeleteMixin, models.Model),
         ),

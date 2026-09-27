@@ -2,31 +2,35 @@
 {% load i18n %}
 
 {% block panel_content %}
+  {% if not object.summary %}
+    <div class="card-body text-muted">{% trans "No plan yet." %}</div>
+  {% else %}
   <table class="table table-hover attr-table">
     {% if object.kind == "drift" %}
-      <tr><th scope="row">{% trans "changed" %}</th><td>{{ object.summary.changed|default:0 }}</td></tr>
-      <tr><th scope="row">{% trans "missing" %}</th><td>{{ object.summary.missing|default:0 }}</td></tr>
-      <tr><th scope="row">{% trans "extra" %}</th><td>{{ object.summary.extra|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Changed" %}</th><td>{{ object.summary.changed|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Missing" %}</th><td>{{ object.summary.missing|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Extra" %}</th><td>{{ object.summary.extra|default:0 }}</td></tr>
     {% else %}
-      <tr><th scope="row">{% trans "create" %}</th><td>{{ object.summary.create|default:0 }}</td></tr>
-      <tr><th scope="row">{% trans "update" %}</th><td>{{ object.summary.update|default:0 }}</td></tr>
-      <tr><th scope="row">{% trans "delete" %}</th><td>{{ object.summary.delete|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Create" %}</th><td>{{ object.summary.create|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Update" %}</th><td>{{ object.summary.update|default:0 }}</td></tr>
+      <tr><th scope="row">{% trans "Delete" %}</th><td>{{ object.summary.delete|default:0 }}</td></tr>
       <tr>
-        <th scope="row">{% trans "schema" %}</th>
+        <th scope="row">{% trans "Schema" %}</th>
         <td>
           {% for kind, names in object.summary.schema_preview.items %}
             {% if names %}<div><span class="text-muted">{{ kind }}:</span> <code>{{ names|join:", " }}</code></div>{% endif %}
           {% empty %}
-            <span class="text-muted">{% trans "no schema changes" %}</span>
+            <span class="text-muted">{% trans "No schema changes" %}</span>
           {% endfor %}
         </td>
       </tr>
     {% endif %}
     {% if object.apply_report %}
-      <tr><th scope="row">{% trans "applied" %}</th><td>{{ object.apply_report.applied|length }}</td></tr>
+      <tr><th scope="row">{% trans "Applied" %}</th><td>{{ object.apply_report.applied|length }}</td></tr>
     {% endif %}
     {% if object.plan %}
-      <tr><th scope="row">{% trans "plan file" %}</th><td><a href="{% url 'plugins:netbox_alembic:run_plan_json' pk=object.pk %}">plan.json</a></td></tr>
+      <tr><th scope="row">{% trans "Plan file" %}</th><td><a href="{% url 'plugins:netbox_alembic:run_plan_json' pk=object.pk %}">plan.json</a></td></tr>
     {% endif %}
   </table>
+  {% endif %}
 {% endblock panel_content %}

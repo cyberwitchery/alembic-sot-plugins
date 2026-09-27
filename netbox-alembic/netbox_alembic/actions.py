@@ -56,16 +56,16 @@ def request_run(flow, user, kind=RunKindChoices.PLAN):
             with transaction.atomic():
                 run = Run.objects.create(flow=flow, kind=kind, requested_by=user)
         except IntegrityError:
-            raise ActionError(_("this flow already has a run in progress")) from None
+            raise ActionError(_("This flow already has a run in progress.")) from None
         transaction.on_commit(lambda: PlanRunJob.enqueue(instance=run, user=user, queue_name=QUEUE))
     return run
 
 
 def _check_approver(run, user):
     if not user.has_perm("netbox_alembic.approve_run", run):
-        raise PermissionDenied(_("you may not approve or reject this run"))
+        raise PermissionDenied(_("You may not approve or reject this run."))
     if setting("require_distinct_approver") and run.requested_by_id == user.pk:
-        raise PermissionDenied(_("a run is approved by someone other than its requester"))
+        raise PermissionDenied(_("A run is approved by someone other than its requester."))
 
 
 def approve(run, user):
@@ -80,7 +80,7 @@ def approve(run, user):
         else:
             late = False
     if late:
-        raise ActionError(_("this plan is too old to approve; plan again"))
+        raise ActionError(_("This plan is too old to approve; plan again."))
 
     with transaction.atomic():
         run = _locked(run)
@@ -119,7 +119,7 @@ def resume(run, user):
         run = _locked(run)
         _check_approver(run, user)
         if run.status != S.APPLY_FAILED.value:
-            raise ActionError(_("only a failed apply can be resumed"))
+            raise ActionError(_("Only a failed apply can be resumed."))
         transaction.on_commit(
             lambda: ApplyRunJob.enqueue(instance=run, user=user, queue_name=QUEUE)
         )

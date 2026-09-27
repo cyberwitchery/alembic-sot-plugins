@@ -5,7 +5,7 @@
   {% if object.kind == "drift" %}
     {% if drift_rows %}
       <table class="table table-sm">
-        <thead><tr><th>{% trans "drift" %}</th><th>{% trans "type" %}</th><th>{% trans "key" %}</th><th>{% trans "fields" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Drift" %}</th><th>{% trans "Type" %}</th><th>{% trans "Key" %}</th><th>{% trans "Fields" %}</th></tr></thead>
         <tbody>
           {% for row in drift_rows %}
             <tr>
@@ -18,17 +18,17 @@
         </tbody>
       </table>
     {% else %}
-      <div class="card-body text-muted">{% trans "no drift" %}</div>
+      <div class="card-body text-muted">{% trans "No drift." %}</div>
     {% endif %}
   {% elif op_groups %}
     <table class="table table-sm">
-      <thead><tr><th>{% trans "op" %}</th><th>{% trans "type" %}</th><th>{% trans "key" %}</th><th>{% trans "changes" %}</th></tr></thead>
+      <thead><tr><th>{% trans "Op" %}</th><th>{% trans "Type" %}</th><th>{% trans "Key" %}</th><th>{% trans "Changes" %}</th></tr></thead>
       <tbody>
         {% for kind, types in op_groups %}
           {% for type_name, ops in types %}
             {% for op in ops %}
-              <tr class="{% if kind == 'delete' %}table-danger{% elif kind == 'update' %}table-warning{% endif %}">
-                <td>{{ kind }}</td>
+              <tr>
+                <td><span class="badge text-bg-{% if kind == 'delete' %}red{% elif kind == 'update' %}orange{% else %}green{% endif %}">{{ kind }}</span></td>
                 <td><code>{{ type_name }}</code></td>
                 <td><code>{{ op.key }}</code></td>
                 <td>{% for c in op.changes %}<div><code>{{ c.field }}</code>: <code>{{ c.from }}</code> &rarr; <code>{{ c.to }}</code></div>{% endfor %}</td>
@@ -39,6 +39,6 @@
       </tbody>
     </table>
   {% else %}
-    <div class="card-body text-muted">{% trans "no operations" %}</div>
+    <div class="card-body text-muted">{% trans "No operations." %}</div>
   {% endif %}
 {% endblock panel_content %}

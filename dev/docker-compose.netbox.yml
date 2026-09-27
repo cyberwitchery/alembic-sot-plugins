@@ -51,7 +51,6 @@ services:
       args:
         NETBOX_IMAGE: ${NETBOX_IMAGE:-docker.io/netboxcommunity/netbox:v4.6.2}
         ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.9.0}
-    image: netbox-alembic-dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,7 +100,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 30s
+      # the first start runs every migration, which can take several minutes.
+      start_period: 900s
+      start_interval: 5s
 
   netbox-worker:
     build:
@@ -109,7 +110,6 @@ services:
       args:
         NETBOX_IMAGE: ${NETBOX_IMAGE:-docker.io/netboxcommunity/netbox:v4.6.2}
         ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.9.0}
-    image: netbox-alembic-dev
     depends_on:
       netbox:
         condition: service_healthy

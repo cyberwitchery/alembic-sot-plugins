@@ -3,8 +3,11 @@
 
 {% block panel_content %}
   {% if object.output %}
-    <pre class="card-body mb-0">{{ object.output }}</pre>
+    <details class="card-body"{% if show_output %} open{% endif %}>
+      <summary>{% trans "alembic's own output" %}</summary>
+      <pre class="mt-2 mb-0">{{ object.output }}</pre>
+    </details>
   {% else %}
-    <div class="card-body text-muted">{% trans "no output yet" %}</div>
+    <div class="card-body text-muted">{% trans "No output yet." %}</div>
   {% endif %}
 {% endblock panel_content %}

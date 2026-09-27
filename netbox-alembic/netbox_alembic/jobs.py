@@ -32,8 +32,12 @@ def _output(*completed, before=""):
     """alembic's output, one block per command, after what earlier jobs recorded."""
     blocks = [before.rstrip()] if before else []
     for c in completed:
+        mode = next((f" {flag}" for flag in ("--dry-run", "--report") if flag in c.argv), "")
+        head = f"$ alembic {c.argv[1]}{mode}"
+        if mode == " --dry-run":
+            head += "  (stale check)"
         body = f"{c.stdout}{c.stderr}".rstrip()
-        blocks.append(f"$ alembic {c.argv[1]}\n{body}" if body else f"$ alembic {c.argv[1]}")
+        blocks.append(f"{head}\n{body}" if body else head)
     return "\n\n".join(blocks)
 
 
@@ -49,7 +53,9 @@ def snapshot(flow, logger):
         data = bytes(datafile.data)
         total += len(data)
         if total > SNAPSHOT_LIMIT:
-            raise RunFailed(f"the files under {prefix or 'the root'} exceed {SNAPSHOT_LIMIT} bytes")
+            raise RunFailed(
+                f"The files under {prefix or 'the root'} exceed {SNAPSHOT_LIMIT} bytes."
+            )
         try:
             files[datafile.path[len(prefix) :]] = data.decode("utf-8")
         except UnicodeDecodeError:
@@ -172,13 +178,13 @@ class ApplyRunJob(RunJob):
                 .select_for_update()
             )
             if busy.exists():
-                raise RunFailed(f"another run is applying to {run.flow.target}; try again later")
+                raise RunFailed(f"Another run is applying to {run.flow.target}; try again later.")
             if locked.status not in (S.APPROVED.value, S.APPLY_FAILED.value):
                 raise ActionError(f"a {locked.status} run is not applied")
             # checked before the move, so a plan that fails it never becomes resumable.
             plan = Plan.from_bytes(locked.plan.encode("utf-8"))
             if not locked.approved_sha256 or plan.sha256 != locked.approved_sha256:
-                raise RunFailed("the stored plan is not the one that was approved")
+                raise RunFailed("The stored plan is not the one that was approved.")
             move(locked, S.APPLYING, apply_started_at=locked.apply_started_at or timezone.now())
         run.refresh_from_db()
 
@@ -203,7 +209,7 @@ class ApplyRunJob(RunJob):
                     run,
                     S.STALE,
                     output=_output(*outputs, before=run.output),
-                    error="the target changed since this plan was made; plan again",
+                    error="The target changed since this plan was made; plan again.",
                     finished_at=timezone.now(),
                 )
                 return

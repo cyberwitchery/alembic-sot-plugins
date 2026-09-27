@@ -101,6 +101,12 @@ backend cannot run a program on the worker.
 - `approve` on runs approves, rejects and resumes. object permissions apply, so
   approval can be scoped, e.g. by flow.
 
+## demo
+
+`demo/` holds a five-minute walkthrough: a fabric inventory in git, planned into
+netbox, approved by a second user, and a plan that goes stale when netbox changes
+under it. `demo/setup.sh` builds it, `demo/README.md` walks through it.
+
 ## development
 
 ```sh

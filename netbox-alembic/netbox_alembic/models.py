@@ -19,7 +19,7 @@ class BackendKindChoices(ChoiceSet):
 class RunKindChoices(ChoiceSet):
     PLAN = "plan"
     DRIFT = "drift"
-    CHOICES = [(PLAN, _("plan"), "blue"), (DRIFT, _("drift report"), "gray")]
+    CHOICES = [(PLAN, _("Plan"), "blue"), (DRIFT, _("Drift report"), "gray")]
 
 
 _STATUS_COLORS = {
@@ -41,7 +41,9 @@ _STATUS_COLORS = {
 
 
 class RunStatusChoices(ChoiceSet):
-    CHOICES = [(s.value, s.value.replace("_", " "), _STATUS_COLORS[s]) for s in RunStatus]
+    CHOICES = [
+        (s.value, s.value.replace("_", " ").capitalize(), _STATUS_COLORS[s]) for s in RunStatus
+    ]
 
 
 class Backend(NetBoxModel):
@@ -94,12 +96,12 @@ class Backend(NetBoxModel):
     def clean(self):
         super().clean()
         if not isinstance(self.config, dict):
-            raise ValidationError({"config": _("config must be a mapping")})
+            raise ValidationError({"config": _("Config must be a mapping.")})
         unknown = set(self.config) - CONFIG_KEYS.get(self.kind, frozenset())
         if unknown:
             raise ValidationError(
                 {
-                    "config": _("a {kind} backend cannot set {keys}; it takes {allowed}").format(
+                    "config": _("A {kind} backend cannot set {keys}; it takes {allowed}").format(
                         kind=self.kind,
                         keys=", ".join(sorted(unknown)),
                         allowed=", ".join(sorted(CONFIG_KEYS.get(self.kind, ()))),
@@ -108,20 +110,22 @@ class Backend(NetBoxModel):
             )
         if self.is_self:
             if self.kind != "netbox":
-                raise ValidationError({"is_self": _("this netbox is a netbox backend")})
+                raise ValidationError({"is_self": _("This NetBox is a NetBox backend.")})
             if "url" in self.config or self.credential:
                 raise ValidationError(
-                    {"is_self": _("this netbox takes its url and credential from plugin settings")}
+                    {"is_self": _("This NetBox takes its URL and credential from plugin settings.")}
                 )
         if self.kind == "external":
             if self.external_adapter not in setting("external_adapters"):
                 raise ValidationError(
-                    {"external_adapter": _("no adapter by that name in plugin settings")}
+                    {"external_adapter": _("No adapter by that name in plugin settings.")}
                 )
         elif self.external_adapter:
-            raise ValidationError({"external_adapter": _("only external backends name an adapter")})
+            raise ValidationError(
+                {"external_adapter": _("Only external backends name an adapter.")}
+            )
         if self.credential and self.credential not in setting("credentials"):
-            raise ValidationError({"credential": _("no credential by that name in settings")})
+            raise ValidationError({"credential": _("No credential by that name in settings.")})
 
 
 class Flow(NetBoxModel):
@@ -182,10 +186,10 @@ class Flow(NetBoxModel):
         for field in ("root", "inventory"):
             value = getattr(self, field).strip("/")
             if value.startswith("/") or ".." in value.split("/"):
-                raise ValidationError({field: _("must be a relative path inside the data source")})
+                raise ValidationError({field: _("Must be a relative path inside the data source.")})
             setattr(self, field, value)
         if not self.inventory:
-            raise ValidationError({"inventory": _("name the inventory file")})
+            raise ValidationError({"inventory": _("Name the inventory file.")})
 
     @property
     def root_prefix(self):
@@ -256,7 +260,7 @@ class Run(JobsMixin, ChangeLoggedModel):
                 fields=["flow"],
                 condition=Q(status__in=sorted(s.value for s in ACTIVE)),
                 name="netbox_alembic_run_one_active_per_flow",
-                violation_error_message=_("this flow already has a run in progress"),
+                violation_error_message=_("This flow already has a run in progress."),
             ),
         ]
 

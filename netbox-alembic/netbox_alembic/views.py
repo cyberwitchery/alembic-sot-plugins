@@ -23,17 +23,17 @@ from .settings import setting
 
 
 class BackendPanel(panels.ObjectAttributesPanel):
-    title = _("backend")
+    title = _("Backend")
     name = attrs.TextAttr("name")
     kind = attrs.ChoiceAttr("kind")
-    is_self = attrs.BooleanAttr("is_self", label=_("this netbox"))
+    is_self = attrs.BooleanAttr("is_self", label=_("This NetBox"))
     credential = attrs.TextAttr("credential", style="font-monospace")
     external_adapter = attrs.TextAttr("external_adapter", style="font-monospace")
     description = attrs.TextAttr("description")
 
 
 class FlowPanel(panels.ObjectAttributesPanel):
-    title = _("flow")
+    title = _("Flow")
     name = attrs.TextAttr("name")
     data_source = attrs.RelatedObjectAttr("data_source", linkify=True)
     root = attrs.TextAttr("root", style="font-monospace")
@@ -46,18 +46,18 @@ class FlowPanel(panels.ObjectAttributesPanel):
 
 
 class RunPanel(panels.ObjectAttributesPanel):
-    title = _("run")
+    title = _("Run")
     flow = attrs.RelatedObjectAttr("flow", linkify=True)
     kind = attrs.ChoiceAttr("kind")
     status = attrs.ChoiceAttr("status")
-    requested_by = attrs.TextAttr("requested_by", label=_("requested by"))
-    decided_by = attrs.TextAttr("decided_by", label=_("decided by"))
-    planned_at = attrs.DateTimeAttr("planned_at", label=_("planned at"))
-    decided_at = attrs.DateTimeAttr("decided_at", label=_("decided at"))
-    finished_at = attrs.DateTimeAttr("finished_at", label=_("finished at"))
-    alembic_version = attrs.TextAttr("alembic_version", label=_("alembic"))
-    input_sha256 = attrs.TextAttr("input_sha256", label=_("input sha-256"), style="font-monospace")
-    plan_sha256 = attrs.TextAttr("plan_sha256", label=_("plan sha-256"), style="font-monospace")
+    requested_by = attrs.TextAttr("requested_by", label=_("Requested by"))
+    decided_by = attrs.TextAttr("decided_by", label=_("Decided by"))
+    planned_at = attrs.DateTimeAttr("planned_at", label=_("Planned at"))
+    decided_at = attrs.DateTimeAttr("decided_at", label=_("Decided at"))
+    finished_at = attrs.DateTimeAttr("finished_at", label=_("Finished at"))
+    alembic_version = attrs.TextAttr("alembic_version", label=_("Alembic version"))
+    input_sha256 = attrs.TextAttr("input_sha256", label=_("Input SHA-256"), style="font-monospace")
+    plan_sha256 = attrs.TextAttr("plan_sha256", label=_("Plan SHA-256"), style="font-monospace")
 
 
 class TemplatedPanel(panels.ObjectPanel):
@@ -90,7 +90,7 @@ class BackendView(generic.ObjectView):
     queryset = Backend.objects.all()
     layout = layout.SimpleLayout(
         left_panels=[BackendPanel(), panels.CommentsPanel()],
-        right_panels=[panels.JSONPanel("config", title=_("config"))],
+        right_panels=[panels.JSONPanel("config", title=_("Config"))],
         bottom_panels=[
             panels.ObjectsTablePanel(
                 model="netbox_alembic.Flow",
@@ -138,7 +138,7 @@ class FlowView(generic.ObjectView):
     queryset = Flow.objects.select_related("data_source", "target")
     layout = layout.SimpleLayout(
         left_panels=[FlowPanel(), panels.CommentsPanel()],
-        right_panels=[TemplatedPanel("netbox_alembic/panels/flow_actions.html", title=_("runs"))],
+        right_panels=[TemplatedPanel("netbox_alembic/panels/flow_actions.html", title=_("Runs"))],
         bottom_panels=[
             panels.ObjectsTablePanel(
                 model="netbox_alembic.Run",
@@ -191,7 +191,7 @@ class ActionView(GetReturnURLMixin, BaseObjectView):
 @register_model_view(Flow, "plan")
 class FlowPlanView(ActionView):
     queryset = Flow.objects.all()
-    message = _("plan queued")
+    message = _("Plan queued")
 
     def get_required_permission(self):
         return "netbox_alembic.add_run"
@@ -217,13 +217,51 @@ class RunListView(generic.ObjectListView):
     actions = (BulkExport,)
 
 
+BUSY = frozenset(
+    s.value for s in (RunStatus.PENDING, RunStatus.PLANNING, RunStatus.APPROVED, RunStatus.APPLYING)
+)
+
+
+# runs whose page offers a fresh plan of the flow.
+PLAN_AGAIN = frozenset(
+    s.value for s in (RunStatus.STALE, RunStatus.FAILED, RunStatus.EXPIRED, RunStatus.DRIFTED)
+)
+
+
 def _compact(value):
     return json.dumps(value, sort_keys=True, separators=(", ", ": ")) if value is not None else "-"
 
 
-def _changes(entry):
+def _names(ops):
+    """uid -> a readable name, for every object a plan creates or updates."""
+    names = {}
+    for op in ops:
+        key = op.get("key") or (op.get("desired") or {}).get("key") or {}
+        values = [v for v in key.values() if isinstance(v, str | int)]
+        if op.get("uid") and values:
+            names[op["uid"]] = "/".join(str(v) for v in values)
+    return names
+
+
+def _readable(value, names):
+    """a value with the uids the plan defines replaced by their objects' names."""
+    if isinstance(value, str):
+        return names.get(value, value)
+    if isinstance(value, list):
+        return [_readable(v, names) for v in value]
+    if isinstance(value, dict):
+        return {k: _readable(v, names) for k, v in value.items()}
+    return value
+
+
+def _changes(entry, names=None):
+    names = names or {}
     return [
-        {"field": c.get("field"), "from": _compact(c.get("from")), "to": _compact(c.get("to"))}
+        {
+            "field": c.get("field"),
+            "from": _compact(_readable(c.get("from"), names)),
+            "to": _compact(_readable(c.get("to"), names)),
+        }
         for c in entry.get("changes") or ()
     ]
 
@@ -249,10 +287,11 @@ def group_ops(plan_text):
     if not plan_text:
         return []
     ops = json.loads(plan_text).get("ops", [])
+    names = _names(ops)
     grouped = defaultdict(lambda: defaultdict(list))
     for op in ops:
-        key = op.get("key") or (op.get("desired") or {}).get("key")
-        entry = {"key": _compact(key), "changes": _changes(op), "uid": op.get("uid")}
+        key = _readable(op.get("key") or (op.get("desired") or {}).get("key"), names)
+        entry = {"key": _compact(key), "changes": _changes(op, names), "uid": op.get("uid")}
         grouped[op.get("op")][op.get("type_name")].append(entry)
     return [
         (kind, sorted(grouped[kind].items()))
@@ -270,18 +309,20 @@ class RunView(generic.ObjectView):
         right_panels=[
             TemplatedPanel(
                 "netbox_alembic/panels/run_decision.html",
-                keys=("can_decide", "decide_reason", "can_resume"),
-                title=_("decision"),
+                keys=("can_decide", "decide_reason", "can_resume", "can_plan_again", "busy"),
+                title=_("Decision"),
             ),
-            TemplatedPanel("netbox_alembic/panels/run_summary.html", title=_("summary")),
+            TemplatedPanel("netbox_alembic/panels/run_summary.html", title=_("Summary")),
         ],
         bottom_panels=[
             TemplatedPanel(
                 "netbox_alembic/panels/run_ops.html",
                 keys=("op_groups", "drift_rows"),
-                title=_("operations"),
+                title=_("Changes"),
             ),
-            TemplatedPanel("netbox_alembic/panels/run_output.html", title=_("alembic output")),
+            TemplatedPanel(
+                "netbox_alembic/panels/run_output.html", keys=("show_output",), title=_("Output")
+            ),
         ],
     )
 
@@ -289,17 +330,23 @@ class RunView(generic.ObjectView):
         user = request.user
         reason = None
         if not user.has_perm("netbox_alembic.approve_run", instance):
-            reason = _("you may not approve runs")
+            reason = _("You may not approve runs.")
         elif setting("require_distinct_approver") and instance.requested_by_id == user.pk:
-            reason = _("someone other than the requester approves this run")
+            reason = _("Someone other than the requester approves this run.")
         elif actions.expired(instance):
-            reason = _("this plan is too old to approve; plan again")
+            reason = _("This plan is too old to approve. Plan again.")
         waiting = instance.status == RunStatus.AWAITING_APPROVAL.value
+        busy = instance.status in BUSY
         return {
+            "busy": busy,
+            "show_output": instance.status in (RunStatus.FAILED.value, RunStatus.STALE.value)
+            or instance.status == RunStatus.APPLY_FAILED.value,
             "op_groups": group_ops(instance.plan),
             "drift_rows": drift_rows(instance.drift_report),
             "can_decide": waiting and reason is None,
             "decide_reason": reason if waiting else None,
+            "can_plan_again": instance.status in PLAN_AGAIN
+            and user.has_perm("netbox_alembic.add_run"),
             "can_resume": instance.status == RunStatus.APPLY_FAILED.value
             and user.has_perm("netbox_alembic.approve_run", instance),
         }
@@ -314,7 +361,7 @@ class RunActionView(ActionView):
 
 @register_model_view(Run, "approve")
 class RunApproveView(RunActionView):
-    message = _("approved; apply queued")
+    message = _("Approved; apply queued")
 
     def perform(self, run, user):
         return actions.approve(run, user)
@@ -322,7 +369,7 @@ class RunApproveView(RunActionView):
 
 @register_model_view(Run, "reject")
 class RunRejectView(RunActionView):
-    message = _("rejected")
+    message = _("Rejected")
 
     def perform(self, run, user):
         return actions.reject(run, user)
@@ -330,7 +377,7 @@ class RunRejectView(RunActionView):
 
 @register_model_view(Run, "resume")
 class RunResumeView(RunActionView):
-    message = _("resume queued")
+    message = _("Resume queued")
 
     def perform(self, run, user):
         return actions.resume(run, user)
