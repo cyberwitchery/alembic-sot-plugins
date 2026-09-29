@@ -19,6 +19,7 @@ from alembic_runner import (
     Workspace,
     WorkspaceError,
     check_transition,
+    failure_status,
     token_env,
 )
 
@@ -57,6 +58,14 @@ class StatusTests(unittest.TestCase):
 
     def test_resume_after_failed_apply(self):
         self.assertEqual(check_transition(S.APPLY_FAILED, S.APPLYING), S.APPLYING)
+
+    def test_failure_status_follows_the_phase(self):
+        self.assertEqual(failure_status(S.PLANNING), S.FAILED)
+        self.assertEqual(failure_status(S.APPROVED), S.FAILED)
+        self.assertEqual(failure_status(S.APPLYING), S.APPLY_FAILED)
+        self.assertIsNone(failure_status(S.AWAITING_APPROVAL))
+        for status in TERMINAL:
+            self.assertIsNone(failure_status(status))
 
     def test_active_runs_are_not_terminal(self):
         self.assertFalse(ACTIVE & TERMINAL)

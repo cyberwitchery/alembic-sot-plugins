@@ -1,0 +1,49 @@
+{% if workflow %}
+  <p>This run is decided through its approval workflow.</p>
+  <a class="btn btn-primary" href="{{ workflow.get_absolute_url }}">Open the approval workflow</a>
+{% elif can_decide %}
+  <p>Applying writes this plan to <a href="{{ object.flow.target.get_absolute_url }}">{{ object.flow.target }}</a>.
+    Before it writes, the plan is checked against the target again. If the target changed, nothing is written.</p>
+  <form action="{% url 'plugins:nautobot_alembic:run_approve' pk=object.pk %}" method="post" class="d-inline">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">Approve and apply</button>
+  </form>
+  <form action="{% url 'plugins:nautobot_alembic:run_reject' pk=object.pk %}" method="post" class="d-inline">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-danger">Reject</button>
+  </form>
+{% elif decide_reason %}
+  <span class="text-muted">{{ decide_reason }}</span>
+{% elif can_resume %}
+  <p>The apply stopped partway. Resuming re-runs the approved plan and skips what already landed.</p>
+  <form action="{% url 'plugins:nautobot_alembic:run_resume' pk=object.pk %}" method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-warning">Resume apply</button>
+  </form>
+{% elif busy %}
+  <span class="text-muted"><span class="spinner-border spinner-border-sm me-2" role="status"></span>Working. This page reloads until the run settles.</span>
+  <script>setTimeout(() => window.location.reload(), 3000);</script>
+{% elif object.status == "stale" %}
+  <div class="alert alert-warning mb-0">
+    <strong>Nothing was written.</strong>
+    The target changed after this plan was made, so applying it would have overwritten a change nobody reviewed.
+  </div>
+{% elif object.status == "drifted" %}
+  <span class="text-muted">A drift report is never applied. Plan to bring the target back to the inventory.</span>
+{% elif object.status == "applied" %}
+  <span class="text-muted">Applied.</span>
+{% elif object.status == "no_changes" %}
+  <span class="text-muted">The target already matches the inventory.</span>
+{% else %}
+  <span class="text-muted">Nothing to decide.</span>
+{% endif %}
+{% if object.error and object.status != "stale" %}
+  <div class="alert alert-danger mt-3 mb-0"><pre class="mb-0">{{ object.error }}</pre></div>
+{% endif %}
+{% if can_plan_again %}
+  <form action="{% url 'plugins:nautobot_alembic:flow_plan' pk=object.flow.pk %}" method="post" class="mt-3">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="plan">
+    <button type="submit" class="btn btn-primary">{% if object.status == "drifted" %}Plan{% else %}Plan again{% endif %}</button>
+  </form>
+{% endif %}

@@ -19,6 +19,7 @@ class BackendTable(NetBoxTable):
 class FlowTable(NetBoxTable):
     name = tables.Column(linkify=True)
     data_source = tables.Column(linkify=True)
+    source = tables.Column(linkify=True)
     target = tables.Column(linkify=True)
     allow_delete = columns.BooleanColumn()
     tags = columns.TagColumn(url_name="plugins:netbox_alembic:flow_list")
@@ -32,12 +33,14 @@ class FlowTable(NetBoxTable):
             "data_source",
             "root",
             "inventory",
+            "source",
+            "map_spec",
             "target",
             "allow_delete",
             "description",
             "tags",
         )
-        default_columns = ("name", "data_source", "inventory", "target", "allow_delete")
+        default_columns = ("name", "data_source", "inventory", "source", "target", "allow_delete")
 
 
 class RunTable(NetBoxTable):

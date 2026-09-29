@@ -1,7 +1,5 @@
-import json
-from collections import defaultdict
-
 from alembic_runner import RunStatus
+from alembic_runner.review import BUSY, PLAN_AGAIN, drift_rows, group_ops, input_names
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
@@ -15,7 +13,6 @@ from utilities.views import GetReturnURLMixin, register_model_view
 
 from . import actions, filtersets, forms, tables
 from .models import Backend, Flow, Run, RunKindChoices
-from .settings import setting
 
 #
 # panels
@@ -37,6 +34,8 @@ class FlowPanel(panels.ObjectAttributesPanel):
     data_source = attrs.RelatedObjectAttr("data_source", linkify=True)
     root = attrs.TextAttr("root", style="font-monospace")
     inventory = attrs.TextAttr("inventory", style="font-monospace")
+    source = attrs.RelatedObjectAttr("source", linkify=True)
+    map_spec = attrs.TextAttr("map_spec", style="font-monospace")
     target = attrs.RelatedObjectAttr("target", linkify=True)
     allow_delete = attrs.BooleanAttr("allow_delete")
     no_adopt = attrs.BooleanAttr("no_adopt")
@@ -126,7 +125,7 @@ class BackendBulkDeleteView(generic.BulkDeleteView):
 
 @register_model_view(Flow, "list", path="", detail=False)
 class FlowListView(generic.ObjectListView):
-    queryset = Flow.objects.select_related("data_source", "target")
+    queryset = Flow.objects.select_related("data_source", "source", "target")
     table = tables.FlowTable
     filterset = filtersets.FlowFilterSet
     filterset_form = forms.FlowFilterForm
@@ -134,7 +133,7 @@ class FlowListView(generic.ObjectListView):
 
 @register_model_view(Flow)
 class FlowView(generic.ObjectView):
-    queryset = Flow.objects.select_related("data_source", "target")
+    queryset = Flow.objects.select_related("data_source", "source", "target")
     layout = layout.SimpleLayout(
         left_panels=[FlowPanel(), panels.CommentsPanel()],
         right_panels=[TemplatedPanel("netbox_alembic/panels/flow_actions.html", title=_("Runs"))],
@@ -193,9 +192,13 @@ class FlowPlanView(ActionView):
     message = _("Plan queued")
 
     def get_required_permission(self):
-        return "netbox_alembic.add_run"
+        # the flow only has to be visible; starting a run is checked below, since
+        # requiring add_run here would restrict the flows by "add" as well.
+        return "netbox_alembic.view_flow"
 
     def perform(self, flow, user):
+        if not user.has_perm("netbox_alembic.add_run"):
+            raise PermissionDenied(_("You may not start runs."))
         kind = self.request.POST.get("kind", RunKindChoices.PLAN)
         if kind not in (RunKindChoices.PLAN, RunKindChoices.DRIFT):
             raise ValidationError(_("Unknown run kind."))
@@ -214,89 +217,6 @@ class RunListView(generic.ObjectListView):
     filterset = filtersets.RunFilterSet
     filterset_form = forms.RunFilterForm
     actions = (BulkExport,)
-
-
-BUSY = frozenset(
-    s.value for s in (RunStatus.PENDING, RunStatus.PLANNING, RunStatus.APPROVED, RunStatus.APPLYING)
-)
-
-
-# runs whose page offers a fresh plan of the flow.
-PLAN_AGAIN = frozenset(
-    s.value for s in (RunStatus.STALE, RunStatus.FAILED, RunStatus.EXPIRED, RunStatus.DRIFTED)
-)
-
-
-def _compact(value):
-    return json.dumps(value, sort_keys=True, separators=(", ", ": ")) if value is not None else "-"
-
-
-def _names(ops):
-    """uid -> a readable name, for every object a plan creates or updates."""
-    names = {}
-    for op in ops:
-        key = op.get("key") or (op.get("desired") or {}).get("key") or {}
-        values = [v for v in key.values() if isinstance(v, str | int)]
-        if op.get("uid") and values:
-            names[op["uid"]] = "/".join(str(v) for v in values)
-    return names
-
-
-def _readable(value, names):
-    """a value with the uids the plan defines replaced by their objects' names."""
-    if isinstance(value, str):
-        return names.get(value, value)
-    if isinstance(value, list):
-        return [_readable(v, names) for v in value]
-    if isinstance(value, dict):
-        return {k: _readable(v, names) for k, v in value.items()}
-    return value
-
-
-def _changes(entry, names=None):
-    names = names or {}
-    return [
-        {
-            "field": c.get("field"),
-            "from": _compact(_readable(c.get("from"), names)),
-            "to": _compact(_readable(c.get("to"), names)),
-        }
-        for c in entry.get("changes") or ()
-    ]
-
-
-def drift_rows(report):
-    """drift entries in category order, for review."""
-    rows = []
-    for category in ("changed", "missing", "extra"):
-        for entry in (report or {}).get(category, ()):
-            rows.append(
-                {
-                    "category": category,
-                    "type_name": entry.get("type_name"),
-                    "key": _compact(entry.get("key")),
-                    "changes": _changes(entry),
-                }
-            )
-    return rows
-
-
-def group_ops(plan_text):
-    """plan ops grouped for review: deletes, updates and creates, each by type."""
-    if not plan_text:
-        return []
-    ops = json.loads(plan_text).get("ops", [])
-    names = _names(ops)
-    grouped = defaultdict(lambda: defaultdict(list))
-    for op in ops:
-        key = _readable(op.get("key") or (op.get("desired") or {}).get("key"), names)
-        entry = {"key": _compact(key), "changes": _changes(op, names), "uid": op.get("uid")}
-        grouped[op.get("op")][op.get("type_name")].append(entry)
-    return [
-        (kind, sorted(grouped[kind].items()))
-        for kind in ("delete", "update", "create")
-        if grouped.get(kind)
-    ]
 
 
 @register_model_view(Run)
@@ -327,21 +247,18 @@ class RunView(generic.ObjectView):
 
     def get_extra_context(self, request, instance):
         user = request.user
-        reason = None
-        if not user.has_perm("netbox_alembic.approve_run", instance):
-            reason = _("You may not approve runs.")
-        elif setting("require_distinct_approver") and instance.requested_by_id == user.pk:
-            reason = _("Someone other than the requester approves this run.")
-        elif actions.expired(instance):
-            reason = _("This plan is too old to approve. Plan again.")
+        reason = actions.refusal(instance, user)
+        names = input_names(
+            (instance.input or {}).get(instance.input_entry or instance.flow.inventory)
+        )
         waiting = instance.status == RunStatus.AWAITING_APPROVAL.value
         busy = instance.status in BUSY
         return {
             "busy": busy,
             "show_output": instance.status in (RunStatus.FAILED.value, RunStatus.STALE.value)
             or instance.status == RunStatus.APPLY_FAILED.value,
-            "op_groups": group_ops(instance.plan),
-            "drift_rows": drift_rows(instance.drift_report),
+            "op_groups": group_ops(instance.plan, names),
+            "drift_rows": drift_rows(instance.drift_report, names),
             "can_decide": waiting and reason is None,
             "decide_reason": reason if waiting else None,
             "can_plan_again": instance.status in PLAN_AGAIN

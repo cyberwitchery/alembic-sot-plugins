@@ -1,0 +1,8 @@
+{% if object.output %}
+  <details{% if show_output %} open{% endif %}>
+    <summary>Output from alembic</summary>
+    <pre class="mt-2 mb-0">{{ object.output }}</pre>
+  </details>
+{% else %}
+  <span class="text-muted">No output yet.</span>
+{% endif %}

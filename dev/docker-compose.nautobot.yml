@@ -1,0 +1,84 @@
+# nautobot with nautobot-alembic mounted, for development and ci.
+x-nautobot: &nautobot
+  build:
+    context: nautobot
+    args:
+      NAUTOBOT_IMAGE: ${NAUTOBOT_IMAGE:-ghcr.io/nautobot/nautobot:3.2.5}
+      ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.10.0}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  environment: &nautobot-env
+    NAUTOBOT_CONFIG: /opt/alembic/alembic_config.py
+    NAUTOBOT_DB_HOST: postgres
+    NAUTOBOT_DB_NAME: nautobot
+    NAUTOBOT_DB_USER: nautobot
+    NAUTOBOT_DB_PASSWORD: nautobot
+    NAUTOBOT_REDIS_HOST: redis
+    NAUTOBOT_SECRET_KEY: nautobot-alembic-dev-secret-0123456789abcdef0123456789
+    NAUTOBOT_ALLOWED_HOSTS: "*"
+    PYTHONPATH: /opt/plugins/nautobot-alembic:/opt/plugins/alembic-runner/src
+    ALEMBIC_NAUTOBOT_TOKEN: ${ALEMBIC_NAUTOBOT_TOKEN:-}
+  volumes:
+    - ./nautobot/alembic_config.py:/opt/alembic/alembic_config.py:ro
+    - ../nautobot-alembic:/opt/plugins/nautobot-alembic
+    - ../alembic-runner:/opt/plugins/alembic-runner:ro
+    - alembic-work:/opt/alembic-work
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nautobot
+      POSTGRES_USER: nautobot
+      POSTGRES_PASSWORD: nautobot
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nautobot -d nautobot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nautobot:
+    <<: *nautobot
+    ports:
+      - "${NAUTOBOT_PORT:-8040}:8080"
+    environment:
+      <<: *nautobot-env
+      NAUTOBOT_CREATE_SUPERUSER: "true"
+      NAUTOBOT_SUPERUSER_NAME: admin
+      NAUTOBOT_SUPERUSER_PASSWORD: admin
+      NAUTOBOT_SUPERUSER_API_TOKEN: "0123456789abcdef0123456789abcdef01234567"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # the first start runs every migration, which can take several minutes.
+      start_period: 900s
+      start_interval: 5s
+
+  worker:
+    <<: *nautobot
+    depends_on:
+      nautobot:
+        condition: service_healthy
+    # the app's jobs run on their own queue, like netbox-alembic's.
+    command: ["nautobot-server", "celery", "worker", "-l", "INFO", "-Q", "default,alembic"]
+    healthcheck:
+      disable: true
+
+volumes:
+  alembic-work:
+  postgres:

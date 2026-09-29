@@ -1,0 +1,3 @@
+#!/bin/sh
+# docker compose for the dev nautobot, from any directory.
+exec docker compose -f "$(dirname "$0")/docker-compose.nautobot.yml" -p nautobot-alembic "$@"

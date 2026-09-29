@@ -16,6 +16,7 @@ class BackendFilterSet(NetBoxModelFilterSet):
 
 class FlowFilterSet(NetBoxModelFilterSet):
     target_id = django_filters.ModelMultipleChoiceFilter(queryset=Backend.objects.all())
+    source_id = django_filters.ModelMultipleChoiceFilter(queryset=Backend.objects.all())
 
     class Meta:
         model = Flow

@@ -1,0 +1,3 @@
+#!/bin/sh
+# nautobot-server inside the dev container.
+exec "$(dirname "$0")/nautobot-compose" exec -T nautobot nautobot-server "$@"

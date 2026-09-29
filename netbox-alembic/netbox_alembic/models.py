@@ -144,6 +144,24 @@ class Flow(NetBoxModel):
         max_length=500,
         help_text=_("Path of the inventory file, relative to the root."),
     )
+    source = models.ForeignKey(
+        to=Backend,
+        on_delete=models.PROTECT,
+        related_name="source_flows",
+        null=True,
+        blank=True,
+        verbose_name=_("source"),
+        help_text=_(
+            "Import the inventory from this backend. The inventory file then only selects "
+            "the types to import."
+        ),
+    )
+    map_spec = models.CharField(
+        verbose_name=_("map spec"),
+        max_length=500,
+        blank=True,
+        help_text=_("Map spec that reshapes the inventory for the target, relative to the root."),
+    )
     target = models.ForeignKey(
         to=Backend,
         on_delete=models.PROTECT,
@@ -178,7 +196,7 @@ class Flow(NetBoxModel):
 
     def clean(self):
         super().clean()
-        for field in ("root", "inventory"):
+        for field in ("root", "inventory", "map_spec"):
             value = getattr(self, field).strip("/")
             if value.startswith("/") or ".." in value.split("/"):
                 raise ValidationError({field: _("Must be a relative path inside the data source.")})
@@ -230,6 +248,11 @@ class Run(JobsMixin, ChangeLoggedModel):
     finished_at = models.DateTimeField(verbose_name=_("finished at"), null=True, blank=True)
 
     input = models.JSONField(verbose_name=_("input"), default=dict, blank=True, editable=False)
+    # the file in `input` the plan was made from: the flow's inventory, or the
+    # inventory an import or a map produced from it.
+    input_entry = models.CharField(
+        verbose_name=_("input entry"), max_length=500, blank=True, editable=False
+    )
     input_sha256 = models.CharField(verbose_name=_("input SHA-256"), max_length=64, blank=True)
     # the plan is kept as the bytes alembic wrote: the approval covers their hash,
     # and a json column would not give the same bytes back.

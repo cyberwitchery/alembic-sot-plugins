@@ -1,0 +1,51 @@
+from nautobot.apps.ui import (
+    NavigationIconChoices,
+    NavigationWeightChoices,
+    NavMenuAddButton,
+    NavMenuGroup,
+    NavMenuItem,
+    NavMenuTab,
+)
+
+menu_items = (
+    NavMenuTab(
+        name="Apps",
+        icon=NavigationIconChoices.APPS,
+        weight=NavigationWeightChoices.APPS,
+        groups=(
+            NavMenuGroup(
+                name="Alembic",
+                weight=100,
+                items=(
+                    NavMenuItem(
+                        link="plugins:nautobot_alembic:flow_list",
+                        name="Flows",
+                        permissions=["nautobot_alembic.view_flow"],
+                        buttons=(
+                            NavMenuAddButton(
+                                link="plugins:nautobot_alembic:flow_add",
+                                permissions=["nautobot_alembic.add_flow"],
+                            ),
+                        ),
+                    ),
+                    NavMenuItem(
+                        link="plugins:nautobot_alembic:run_list",
+                        name="Runs",
+                        permissions=["nautobot_alembic.view_run"],
+                    ),
+                    NavMenuItem(
+                        link="plugins:nautobot_alembic:backend_list",
+                        name="Backends",
+                        permissions=["nautobot_alembic.view_backend"],
+                        buttons=(
+                            NavMenuAddButton(
+                                link="plugins:nautobot_alembic:backend_add",
+                                permissions=["nautobot_alembic.add_backend"],
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ),
+)

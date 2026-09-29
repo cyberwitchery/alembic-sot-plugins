@@ -7,13 +7,21 @@ apply.
 - `alembic-runner`: the host-independent core. runs the `alembic` cli, parses
   what it writes, owns the run state machine.
 - `netbox-alembic`: the netbox plugin, netbox 4.6 or later.
-- `nautobot-alembic`: the nautobot app. not written yet.
+- `nautobot-alembic`: the nautobot app, nautobot 3.2 or later.
 
 ## how a run goes
 
 a **backend** is something alembic plans against: another system, or this
-netbox itself, reached through its own rest api like any other. a **flow** names an inventory in a netbox data source and a target
-backend. a **run** is one plan of a flow and at most one apply of it.
+netbox itself, reached through its own rest api like any other. a **flow** names
+an inventory in a netbox data source and a target backend. a **run** is one plan
+of a flow and at most one apply of it.
+
+a flow can also name a **source** backend and a **map spec**. with a source, the
+run imports from it (`alembic import`, the inventory file selecting which types),
+so netbox can be the source and another system the target. a map spec
+(`alembic map`, a file in the same data source) reshapes the inventory into the
+target's model on the way, as netbox to nautobot needs. the run keeps what the
+import and the map produced, and plans, checks and applies from that.
 
 ```text
 plan (background job: sync the data source, snapshot the files, alembic plan)
@@ -35,6 +43,55 @@ plan (background job: sync the data source, snapshot the files, alembic plan)
 
 a drift run (`alembic plan --report`) records how the target differs from the
 inventory and never goes to approval.
+
+## nautobot
+
+`nautobot-alembic` has the same models, runs and guarantees. what differs is
+where things come from:
+
+- a flow's inventory lives in a nautobot **git repository**, pulled at plan time.
+- a backend's token comes from a **secrets group** (access type http(s), secret
+  type token), so it can live in any secrets provider nautobot has.
+- **approval workflows** decide runs. a run that awaits approval starts the
+  workflow whose definition matches it; its stages and approver groups decide,
+  and an approval queues the apply. the app refuses an approval only the
+  requester gave. a run no workflow definition matches is approved with the
+  app's own `approve` permission, as in netbox.
+- the jobs are hidden nautobot jobs on the `alembic` queue; run a worker for it
+  (`nautobot-server celery worker -Q alembic`).
+
+```python
+PLUGINS = ["nautobot_alembic"]
+PLUGINS_CONFIG = {
+    "nautobot_alembic": {
+        "alembic_path": "/usr/local/bin/alembic",
+        "work_root": "/var/lib/nautobot-alembic",
+        # identity state. "local" keeps it in each flow's directory.
+        "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
+        # external adapter binaries by name. a backend names one, never a path.
+        # an adapter that reads its token from a variable of its own names it.
+        "external_adapters": {
+            "mybackend": "/usr/local/bin/alembic-adapter-mybackend",
+            "other": {
+                "command": "/usr/local/bin/alembic-adapter-other",
+                "token_env": "OTHER_TOKEN",
+            },
+        },
+        "require_distinct_approver": True,
+        "plan_ttl_hours": 72,
+        "run_timeout_seconds": 1800,
+    },
+}
+```
+
+there is no credentials setting: a backend's token comes from its secrets group
+when the job runs, through whichever secrets provider holds it. the same
+environment rules apply as in netbox: alembic sees only the credentials of the
+backend each command talks to.
+
+permissions are the same as netbox's: `add` on runs starts one, `approve` on
+runs approves, rejects and resumes where no approval workflow applies. an
+approval workflow's own stages and approver groups decide otherwise.
 
 ## install
 
@@ -98,12 +155,6 @@ backend cannot run a program on the worker.
 - `approve` on runs approves, rejects and resumes. object permissions apply, so
   approval can be scoped, e.g. by flow.
 
-## demo
-
-`demo/` holds a five-minute walkthrough: a fabric inventory in git, planned into
-netbox, approved by a second user, and a plan that goes stale when netbox changes
-under it. `demo/setup.sh` builds it, `demo/README.md` walks through it.
-
 ## development
 
 ```sh
@@ -111,6 +162,9 @@ dev/compose up -d --build --wait     # netbox 4.6.2 on :8011, with the plugin mo
 dev/manage test netbox_alembic       # plugin tests
 dev/e2e.sh                           # plan, approve, apply, stale and drift, for real
 NETBOX_IMAGE=docker.io/netboxcommunity/netbox:v4.7.1 NETBOX_PORT=8012 dev/compose up -d --build --wait
+dev/nautobot-compose up -d --build --wait   # nautobot 3.2.5 on :8040, with the app mounted
+dev/nautobot-manage test nautobot_alembic   # app tests
+dev/nautobot-e2e.sh                         # the same end to end, plus an approval workflow
 ```
 
 the core's tests run the real cli against a json-file adapter:

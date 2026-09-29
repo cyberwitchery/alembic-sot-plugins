@@ -44,12 +44,13 @@ class BackendFilterForm(NetBoxModelFilterSetForm):
 
 class FlowForm(NetBoxModelForm):
     data_source = DynamicModelChoiceField(queryset=DataSource.objects.all())
+    source = DynamicModelChoiceField(queryset=Backend.objects.all(), required=False)
     target = DynamicModelChoiceField(queryset=Backend.objects.all())
     comments = CommentField()
 
     fieldsets = (
         FieldSet("name", "description", "tags", name=_("Flow")),
-        FieldSet("data_source", "root", "inventory", name=_("Source")),
+        FieldSet("data_source", "root", "inventory", "source", "map_spec", name=_("Source")),
         FieldSet("target", "allow_delete", "no_adopt", "state_key", name=_("Target")),
     )
 
@@ -60,6 +61,8 @@ class FlowForm(NetBoxModelForm):
             "data_source",
             "root",
             "inventory",
+            "source",
+            "map_spec",
             "target",
             "allow_delete",
             "no_adopt",

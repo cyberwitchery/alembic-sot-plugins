@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nautobot-alembic"
+version = "0.1.0"
+description = "nautobot app that plans, reviews and applies alembic runs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "cyberwitchery lab", email = "contact@cyberwitchery.com" }]
+keywords = ["alembic", "nautobot", "nautobot-app", "network-automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Networking",
+]
+dependencies = ["alembic-runner==0.1.0"]
+
+[project.urls]
+Homepage = "https://github.com/cyberwitchery/alembic-sot-plugins"
+Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nautobot_alembic"]

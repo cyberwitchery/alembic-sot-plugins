@@ -1,0 +1,39 @@
+{% if object.kind == "drift" %}
+  {% if drift_rows %}
+    <table class="table table-sm">
+      <thead><tr><th>Drift</th><th>Type</th><th>Key</th><th>Fields</th></tr></thead>
+      <tbody>
+        {% for row in drift_rows %}
+          <tr>
+            <td>{{ row.category }}</td>
+            <td><code>{{ row.type_name }}</code></td>
+            <td><code>{{ row.key }}</code></td>
+            <td>{% for c in row.changes %}<div><code>{{ c.field }}</code>: <code>{{ c.from }}</code> &rarr; <code>{{ c.to }}</code></div>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <span class="text-muted">No drift.</span>
+  {% endif %}
+{% elif op_groups %}
+  <table class="table table-sm">
+    <thead><tr><th>Op</th><th>Type</th><th>Key</th><th>Changes</th></tr></thead>
+    <tbody>
+      {% for kind, types in op_groups %}
+        {% for type_name, ops in types %}
+          {% for op in ops %}
+            <tr>
+              <td><span class="badge {% if kind == 'delete' %}bg-danger{% elif kind == 'update' %}bg-warning{% else %}bg-success{% endif %}">{{ kind }}</span></td>
+              <td><code>{{ type_name }}</code></td>
+              <td><code>{{ op.key }}</code></td>
+              <td>{% for c in op.changes %}<div><code>{{ c.field }}</code>: <code>{{ c.from }}</code> &rarr; <code>{{ c.to }}</code></div>{% endfor %}</td>
+            </tr>
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <span class="text-muted">No operations.</span>
+{% endif %}

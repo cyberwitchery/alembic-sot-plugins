@@ -1,0 +1,31 @@
+{% if not object.summary %}
+  <span class="text-muted">No plan yet.</span>
+{% else %}
+  <table class="table table-hover">
+    {% if object.kind == "drift" %}
+      <tr><th scope="row">Changed</th><td>{{ object.summary.changed|default:0 }}</td></tr>
+      <tr><th scope="row">Missing</th><td>{{ object.summary.missing|default:0 }}</td></tr>
+      <tr><th scope="row">Extra</th><td>{{ object.summary.extra|default:0 }}</td></tr>
+    {% else %}
+      <tr><th scope="row">Create</th><td>{{ object.summary.create|default:0 }}</td></tr>
+      <tr><th scope="row">Update</th><td>{{ object.summary.update|default:0 }}</td></tr>
+      <tr><th scope="row">Delete</th><td>{{ object.summary.delete|default:0 }}</td></tr>
+      <tr>
+        <th scope="row">Schema</th>
+        <td>
+          {% for kind, names in object.summary.schema_preview.items %}
+            {% if names %}<div><span class="text-muted">{{ kind }}:</span> <code>{{ names|join:", " }}</code></div>{% endif %}
+          {% empty %}
+            <span class="text-muted">No schema changes</span>
+          {% endfor %}
+        </td>
+      </tr>
+    {% endif %}
+    {% if object.apply_report %}
+      <tr><th scope="row">Applied</th><td>{{ object.apply_report.applied|length }}</td></tr>
+    {% endif %}
+    {% if object.plan %}
+      <tr><th scope="row">Plan file</th><td><a href="{% url 'plugins:nautobot_alembic:run_plan_json' pk=object.pk %}">plan.json</a></td></tr>
+    {% endif %}
+  </table>
+{% endif %}

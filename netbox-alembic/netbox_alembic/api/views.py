@@ -2,6 +2,7 @@ from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from netbox.api.authentication import TokenPermissions
 from netbox.api.viewsets import NetBoxModelViewSet, NetBoxReadOnlyModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
@@ -11,6 +12,14 @@ from rest_framework.response import Response
 from .. import actions, filtersets
 from ..models import Backend, Flow, Run, RunKindChoices
 from . import serializers
+
+
+class ActionPermissions(TokenPermissions):
+    """a run action needs to see its object and a token that may write. whether
+    the user may start, approve or resume is the action's own check: netbox's
+    default would demand `add` on the flow or run for any POST."""
+
+    perms_map = {**TokenPermissions.perms_map, "POST": ["%(app_label)s.view_%(model_name)s"]}
 
 
 def _act(request, fn, *args):
@@ -29,11 +38,11 @@ class BackendViewSet(NetBoxModelViewSet):
 
 
 class FlowViewSet(NetBoxModelViewSet):
-    queryset = Flow.objects.select_related("data_source", "target")
+    queryset = Flow.objects.select_related("data_source", "source", "target")
     serializer_class = serializers.FlowSerializer
     filterset_class = filtersets.FlowFilterSet
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], permission_classes=[ActionPermissions])
     def plan(self, request, pk):
         """start a plan (or, with `{"kind": "drift"}`, a drift report) for this flow."""
         if not request.user.has_perm("netbox_alembic.add_run"):
@@ -55,22 +64,24 @@ class RunViewSet(NetBoxReadOnlyModelViewSet):
     filterset_class = filtersets.RunFilterSet
 
     def _decide(self, request, pk, fn, code=status.HTTP_200_OK):
-        run = get_object_or_404(self.get_queryset(), pk=pk)
+        # the viewset restricts its queryset by the method (POST reads as "add");
+        # an action only needs the run to be visible.
+        run = get_object_or_404(Run.objects.restrict(request.user, "view"), pk=pk)
         result = _act(request, fn, run, request.user)
         if isinstance(result, Response):
             return result
         data = serializers.RunSerializer(result, context={"request": request}).data
         return Response(data, status=code)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], permission_classes=[ActionPermissions])
     def approve(self, request, pk):
         return self._decide(request, pk, actions.approve, status.HTTP_202_ACCEPTED)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], permission_classes=[ActionPermissions])
     def reject(self, request, pk):
         return self._decide(request, pk, actions.reject)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], permission_classes=[ActionPermissions])
     def resume(self, request, pk):
         return self._decide(request, pk, actions.resume, status.HTTP_202_ACCEPTED)
 

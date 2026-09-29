@@ -50,7 +50,7 @@ services:
       context: netbox
       args:
         NETBOX_IMAGE: ${NETBOX_IMAGE:-docker.io/netboxcommunity/netbox:v4.6.2}
-        ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.9.0}
+        ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.10.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,7 +109,7 @@ services:
       context: netbox
       args:
         NETBOX_IMAGE: ${NETBOX_IMAGE:-docker.io/netboxcommunity/netbox:v4.6.2}
-        ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.9.0}
+        ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.10.0}
     depends_on:
       netbox:
         condition: service_healthy

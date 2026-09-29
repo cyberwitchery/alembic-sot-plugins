@@ -41,6 +41,17 @@ TERMINAL = frozenset(s for s in RunStatus if s not in TRANSITIONS)
 ACTIVE = frozenset({S.PENDING, S.PLANNING, S.AWAITING_APPROVAL, S.APPROVED, S.APPLYING})
 
 
+def failure_status(current: RunStatus | str) -> RunStatus | None:
+    """where a run goes when its job fails: a failed plan is over, a failed apply
+    can be resumed, and a run no job was working on stays as it is."""
+    current = RunStatus(current)
+    if current in (S.PENDING, S.PLANNING, S.APPROVED):
+        return S.FAILED
+    if current is S.APPLYING:
+        return S.APPLY_FAILED
+    return None
+
+
 class TransitionError(ValueError):
     pass
 

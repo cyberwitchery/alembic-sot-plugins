@@ -62,6 +62,7 @@ def runner_flow(flow):
     return RunnerFlow(
         id=str(flow.pk),
         target=runner_backend(flow.target),
+        source=runner_backend(flow.source) if flow.source_id else None,
         allow_delete=flow.allow_delete,
         no_adopt=flow.no_adopt,
         state_key=flow.state_key or None,

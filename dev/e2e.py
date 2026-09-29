@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 
 from core.models import DataSource
-from netbox_alembic.models import Backend, Flow
+from netbox_alembic.models import Backend, Flow, Run
 from users.models import Token, User
 
 API = "http://localhost:8080/api"
@@ -140,6 +140,21 @@ try:
     run = plan(req, flow.pk, kind="drift")
     check("drift report sees the drift", run["status"]["value"] == "drifted", run["error"])
     check("drift report lists the changed site", run["summary"].get("changed") == 1, run["summary"])
+
+    # netbox as the source: import what the first flow applied and plan it back
+    # into the same netbox. the snapshot is the import, and it matches netbox.
+    mirror = Flow.objects.create(
+        name=f"e2e-mirror-{SUFFIX}",
+        data_source=source,
+        inventory="inventory.yaml",
+        source=target,
+        target=target,
+    )
+    run = plan(req, mirror.pk)
+    converged = run["status"]["value"] == "no_changes"
+    check("an import plans from what it imported", converged, run["error"])
+    entry = Run.objects.get(pk=run["id"]).input_entry
+    check("the import is the run's input", entry == "inventory.json", entry)
 finally:
     shutil.rmtree(INVENTORY_DIR, ignore_errors=True)
 

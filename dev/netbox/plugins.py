@@ -2,7 +2,9 @@ PLUGINS = ["netbox_alembic"]
 PLUGINS_CONFIG = {
     "netbox_alembic": {
         "work_root": "/opt/alembic-work",
-        "credentials": {"netbox": {"token": "ALEMBIC_NETBOX_TOKEN"}},
+        "credentials": {
+            "netbox": {"token": "ALEMBIC_NETBOX_TOKEN"},
+        },
     },
 }
 

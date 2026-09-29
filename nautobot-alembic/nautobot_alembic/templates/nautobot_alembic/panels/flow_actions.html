@@ -1,0 +1,14 @@
+{% if perms.nautobot_alembic.add_run %}
+  <form action="{% url 'plugins:nautobot_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="plan">
+    <button type="submit" class="btn btn-primary">Plan</button>
+  </form>
+  <form action="{% url 'plugins:nautobot_alembic:flow_plan' pk=object.pk %}" method="post" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="drift">
+    <button type="submit" class="btn btn-secondary">Drift report</button>
+  </form>
+{% else %}
+  <span class="text-muted">You may not start runs.</span>
+{% endif %}

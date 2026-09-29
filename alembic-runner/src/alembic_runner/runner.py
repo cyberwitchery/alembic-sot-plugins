@@ -15,7 +15,7 @@ from .plan import ApplyReport, DocumentError, DriftReport, Plan, sha256
 from .workspace import Workspace
 
 # pre-1.0, a minor release may break the cli, so the range stops at the next minor.
-SUPPORTED = ((0, 9, 0), (0, 10, 0))
+SUPPORTED = ((0, 10, 0), (0, 11, 0))
 
 # what a run inherits from the worker. everything else is built per run, so the
 # host's own secrets (django SECRET_KEY, database passwords) never reach alembic.
@@ -71,13 +71,15 @@ class Completed:
 
 @dataclass(frozen=True)
 class Flow:
-    """what a flow's runs need from the host: its id, its target and its flags."""
+    """what a flow's runs need from the host: its id, its target and its flags.
+    a flow with a `source` imports its inventory from that backend."""
 
     id: str
     target: Backend
     allow_delete: bool = False
     no_adopt: bool = False
     state_key: str | None = None
+    source: Backend | None = None
 
     @property
     def key(self) -> str:
@@ -88,6 +90,15 @@ class Flow:
 class PlanOutcome:
     completed: Completed
     plan: Plan | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class InventoryOutcome:
+    """an inventory an import or a map wrote, at `inventory`."""
+
+    completed: Completed
+    inventory: Path | None = None
     error: str | None = None
 
 
@@ -163,6 +174,33 @@ class Runner:
             return PlanOutcome(completed, plan=Plan.from_bytes(out.read_bytes()))
         except (OSError, DocumentError) as e:
             return PlanOutcome(completed, error=f"plan output unreadable: {e}")
+
+    def import_(self, flow: Flow, run: str, schema_inventory: Path) -> InventoryOutcome:
+        """observe the flow's source into an inventory; `schema_inventory` selects the types."""
+        if flow.source is None:
+            raise RunnerError("this flow has no source backend to import from")
+        ws = self._workspace(flow)
+        config = ws.write_backend_config(run, "source", flow.source.config_document())
+        out = ws.run_dir(run) / "imported.json"
+        args = ["import", "-f", str(schema_inventory), "-o", str(out)]
+        args += ["--backend-config", str(config)]
+        completed = self._run(flow, args, credentials=flow.source.env)
+        return self._inventory_outcome(completed, out)
+
+    def map(self, flow: Flow, run: str, inventory: Path, spec: Path) -> InventoryOutcome:
+        """reshape `inventory` with the map `spec`. it reaches no backend: no credentials."""
+        out = self._workspace(flow).prepare(run) / "mapped.json"
+        args = ["map", "-f", str(inventory), "--spec", str(spec), "-o", str(out)]
+        completed = self._run(flow, args, credentials={})
+        return self._inventory_outcome(completed, out)
+
+    @staticmethod
+    def _inventory_outcome(completed: Completed, out: Path) -> InventoryOutcome:
+        if not completed.ok:
+            return InventoryOutcome(completed, error=completed.describe())
+        if not out.is_file():
+            return InventoryOutcome(completed, error=f"alembic wrote no inventory to {out.name}")
+        return InventoryOutcome(completed, inventory=out)
 
     def check_stale(self, flow: Flow, run: str, inventory: Path, approved: Plan) -> StaleCheck:
         """re-plan without saving anything and compare with the approved plan."""
@@ -244,13 +282,21 @@ class Runner:
             env["RUST_LOG"] = self.rust_log
         return env
 
-    def env(self, flow: Flow) -> dict[str, str]:
+    def env(self, flow: Flow, credentials: dict[str, str] | None = None) -> dict[str, str]:
+        """a run's environment. `credentials` are those of the backend the command
+        talks to, the target's unless given: no command sees another's secrets."""
         env = self._base_env(self._workspace(flow).flow_dir)
         env.update(self.state.env(flow.key))
-        env.update(flow.target.env)
+        env.update(flow.target.env if credentials is None else credentials)
         return env
 
-    def _run(self, flow: Flow, args: Sequence[str], keep_stdout: bool = False) -> Completed:
+    def _run(
+        self,
+        flow: Flow,
+        args: Sequence[str],
+        keep_stdout: bool = False,
+        credentials: dict[str, str] | None = None,
+    ) -> Completed:
         cwd = self._workspace(flow).flow_dir
         cwd.mkdir(parents=True, exist_ok=True)
         argv = [self.alembic_path, *args]
@@ -259,7 +305,7 @@ class Runner:
             proc = subprocess.run(
                 argv,
                 cwd=cwd,
-                env=self.env(flow),
+                env=self.env(flow, credentials),
                 capture_output=True,
                 timeout=self.timeout,
                 check=False,

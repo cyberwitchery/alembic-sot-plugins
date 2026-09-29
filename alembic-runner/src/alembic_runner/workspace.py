@@ -64,13 +64,18 @@ class Workspace:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def input_dir(self, run: str) -> Path:
+        """where `write_input` puts a run's files: paths in the flow resolve here."""
+        return self.run_dir(run) / "input"
+
     def write_input(self, run: str, files: dict[str, str], entry: str) -> Path:
         """write the snapshotted source files, replacing any earlier copy, and
         return the path of `entry` among them."""
         entry_rel = _relative(entry)
         if entry not in files:
             raise WorkspaceError(f"entry {entry!r} is not among the input files")
-        base = self.prepare(run) / "input"
+        self.prepare(run)
+        base = self.input_dir(run)
         if base.exists():
             shutil.rmtree(base)
         for path, content in files.items():

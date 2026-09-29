@@ -1,9 +1,20 @@
 import json
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from alembic_runner import ApplyOutcome, ApplyReport, Completed, Plan, PlanOutcome, StaleCheck
+from alembic_runner import (
+    ApplyOutcome,
+    ApplyReport,
+    Completed,
+    InventoryOutcome,
+    Plan,
+    PlanOutcome,
+    StaleCheck,
+    Workspace,
+)
 from core.models import DataFile, DataSource
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -28,6 +39,8 @@ INVENTORY = "schema:\n  types: {}\n"
 CREATE = {"op": "create", "uid": "u", "type_name": "t"}
 PLAN = json.dumps({"schema": {"types": {}}, "ops": [CREATE]})
 EMPTY_PLAN = json.dumps({"schema": {"types": {}}, "ops": []})
+IMPORTED = '{"schema": {"types": {}}, "objects": [], "from": "import"}'
+MAPPED = '{"schema": {"types": {}}, "objects": [], "from": "map"}'
 
 
 def completed(argv=("alembic", "plan"), code=0, stdout="", stderr=""):
@@ -40,19 +53,39 @@ class FakeRunner:
     def __init__(self, plan=PLAN, stale=False, apply_ok=True):
         self.plan_text, self.stale, self.apply_ok = plan, stale, apply_ok
         self.calls = []
+        self.planned_from = None
+        self.root = Path(tempfile.mkdtemp())
 
     def check_version(self):
         return "0.9.0"
 
     def workspace(self, flow):
-        return SimpleNamespace(write_input=lambda run, files, entry: f"/tmp/{run}/{entry}")
+        return Workspace(self.root, flow.id)
+
+    def _written(self, flow, run, name, text):
+        path = Workspace(self.root, flow.id).prepare(run) / name
+        path.write_text(text)
+        return path
+
+    def import_(self, flow, run, schema_inventory):
+        self.calls.append("import")
+        path = self._written(flow, run, "imported.json", IMPORTED)
+        return InventoryOutcome(completed(("alembic", "import")), inventory=path)
+
+    def map(self, flow, run, inventory, spec):
+        self.calls.append("map")
+        self.mapped_from = Path(inventory).read_text()
+        path = self._written(flow, run, "mapped.json", MAPPED)
+        return InventoryOutcome(completed(("alembic", "map")), inventory=path)
 
     def plan(self, flow, run, inventory):
         self.calls.append("plan")
+        self.planned_from = Path(inventory).read_text()
         return PlanOutcome(completed(), plan=Plan.from_bytes(self.plan_text.encode()))
 
     def check_stale(self, flow, run, inventory, approved):
         self.calls.append("check_stale")
+        self.planned_from = Path(inventory).read_text()
         return StaleCheck(completed(), stale=self.stale)
 
     def apply(self, flow, run, plan, expected):
@@ -83,7 +116,8 @@ class RunTestCase(TestCase):
         cls.source = DataSource.objects.create(
             name="inventory", type="local", source_url="file:///tmp/inventory"
         )
-        for path, content in {"inv/inventory.yaml": INVENTORY, "other.yaml": "x"}.items():
+        files = {"inv/inventory.yaml": INVENTORY, "inv/map.yaml": "rules: []\n", "other.yaml": "x"}
+        for path, content in files.items():
             DataFile.objects.create(
                 source=cls.source,
                 path=path,
@@ -153,7 +187,8 @@ class PlanTests(RunTestCase):
 
     def test_input_is_snapshotted_under_the_root(self):
         run = self.plan()
-        self.assertEqual(run.input, {"inventory.yaml": INVENTORY})
+        # everything under the root, nothing outside it.
+        self.assertEqual(run.input, {"inventory.yaml": INVENTORY, "map.yaml": "rules: []\n"})
         self.assertEqual(len(run.input_sha256), 64)
 
     def test_empty_plan_is_no_changes(self):
@@ -278,6 +313,63 @@ class ApplyTests(RunTestCase):
         self.plan()
         failed.refresh_from_db()
         self.assertEqual(failed.status, "superseded")
+
+
+@override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)
+class SourceTests(RunTestCase):
+    """a flow with a source imports its inventory; a map spec reshapes it."""
+
+    def set_flow(self, **fields):
+        Flow.objects.filter(pk=self.flow.pk).update(**fields)
+        self.flow.refresh_from_db()
+
+    def other_backend(self):
+        return Backend.objects.create(
+            name="nautobot",
+            kind="nautobot",
+            config={"url": "http://nautobot:8080"},
+            credential="other",
+        )
+
+    def test_import_is_what_the_run_plans_from(self):
+        self.set_flow(source=self.target, target=self.other_backend())
+        runner = FakeRunner()
+        run = self.plan(runner)
+        self.assertEqual(run.status, "awaiting_approval", run.error)
+        self.assertEqual(runner.calls, ["import", "plan"])
+        self.assertEqual(run.input, {"inventory.json": IMPORTED})
+        self.assertEqual(run.input_entry, "inventory.json")
+        self.assertEqual(runner.planned_from, IMPORTED)
+
+    def test_map_reshapes_the_import(self):
+        self.set_flow(source=self.target, target=self.other_backend(), map_spec="map.yaml")
+        runner = FakeRunner()
+        run = self.plan(runner)
+        self.assertEqual(runner.calls, ["import", "map", "plan"])
+        self.assertEqual(runner.mapped_from, IMPORTED)
+        self.assertEqual(run.input, {"inventory.json": MAPPED})
+
+    def test_map_without_a_source_reshapes_the_inventory(self):
+        self.set_flow(map_spec="map.yaml")
+        runner = FakeRunner()
+        self.plan(runner)
+        self.assertEqual(runner.calls, ["map", "plan"])
+        self.assertEqual(runner.mapped_from, INVENTORY)
+
+    def test_missing_map_spec_fails_the_run(self):
+        self.set_flow(map_spec="missing.yaml")
+        run = self.plan(FakeRunner())
+        self.assertEqual(run.status, "failed")
+        self.assertIn("missing.yaml", run.error)
+
+    def test_apply_checks_against_the_derived_inventory(self):
+        self.set_flow(source=self.target, target=self.other_backend())
+        run = self.approve(self.plan(FakeRunner()))
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "applied", run.error)
+        self.assertEqual(runner.calls, ["check_stale", "apply"])
+        self.assertEqual(runner.planned_from, IMPORTED)
 
 
 @override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)

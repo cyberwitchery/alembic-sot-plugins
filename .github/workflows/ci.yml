@@ -16,7 +16,7 @@ permissions:
 env:
   # the alembic release the plugins are checked against. bump it deliberately,
   # together with alembic_runner.SUPPORTED.
-  ALEMBIC_VERSION: v0.9.0
+  ALEMBIC_VERSION: v0.10.0
   ALEMBIC_TARGET: x86_64-unknown-linux-gnu
 
 jobs:
@@ -79,6 +79,23 @@ jobs:
         if: failure()
         run: dev/compose logs --tail 200
 
+  nautobot:
+    name: nautobot 3.2.5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: start nautobot
+        run: dev/nautobot-compose up -d --build --wait --wait-timeout 900
+      - name: migrations are complete
+        run: dev/nautobot-manage makemigrations nautobot_alembic --check --dry-run
+      - name: unit tests
+        run: dev/nautobot-manage test nautobot_alembic --noinput
+      - name: end to end
+        run: dev/nautobot-e2e.sh
+      - name: logs
+        if: failure()
+        run: dev/nautobot-compose logs --tail 200
+
   build:
     name: build
     runs-on: ubuntu-latest
@@ -88,11 +105,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install --upgrade build
-      - run: python -m build alembic-runner && python -m build netbox-alembic
+      - run: python -m build alembic-runner && python -m build netbox-alembic && python -m build nautobot-alembic
 
   success:
     name: success
-    needs: [lint, runner, netbox, build]
+    needs: [lint, runner, netbox, nautobot, build]
     runs-on: ubuntu-latest
     if: always()
     steps:

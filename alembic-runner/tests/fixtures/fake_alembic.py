@@ -17,7 +17,7 @@ def sibling(suffix, default):
 
 
 if sys.argv[1:] == ["--version"]:
-    print(sibling(".version", "alembic 0.9.0"))
+    print(sibling(".version", "alembic 0.10.0"))
     sys.exit(0)
 
 here.with_suffix(".record").write_text(

@@ -1,9 +1,0 @@
-# on top of dev/docker-compose.netbox.yml: the demo's git repo, mounted where
-# the netbox git data source clones it from.
-services:
-  netbox:
-    volumes:
-      - ${DEMO_REPO:?set by demo/compose}:/opt/demo-repo:ro
-  netbox-worker:
-    volumes:
-      - ${DEMO_REPO:?set by demo/compose}:/opt/demo-repo:ro

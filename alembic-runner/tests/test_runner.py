@@ -109,11 +109,36 @@ class FakeBinaryTests(unittest.TestCase):
             self.runner.apply(self.flow, "9", plan, "0" * 64)
 
     def test_version_range(self):
-        self.assertEqual(self.runner.check_version(), "0.9.0")
-        for text in ("alembic 0.8.4", "alembic 0.10.0", "something else"):
+        self.assertEqual(self.runner.check_version(), "0.10.0")
+        for text in ("alembic 0.9.0", "alembic 0.11.0", "something else"):
             self.fake.with_suffix(".version").write_text(text)
             with self.assertRaises(RunnerError, msg=text):
                 self.runner.check_version()
+
+    def test_import_talks_to_the_source_with_its_credentials(self):
+        flow = Flow(
+            "1",
+            Backend("netbox", {"url": "https://target"}, env={"NETBOX_TOKEN": "target"}),
+            source=Backend("nautobot", {"url": "https://src"}, env={"NAUTOBOT_TOKEN": "source"}),
+        )
+        outcome = self.runner.import_(flow, "9", self.inventory)
+        record = self.record()
+        self.assertEqual(record["argv"][:3], ["import", "-f", str(self.inventory)])
+        config = Path(record["argv"][record["argv"].index("--backend-config") + 1])
+        self.assertEqual(json.loads(config.read_text())["url"], "https://src")
+        self.assertEqual(record["env"].get("NAUTOBOT_TOKEN"), "source")
+        self.assertNotIn("NETBOX_TOKEN", record["env"])
+        self.assertIn("no inventory", outcome.error)
+
+    def test_map_gets_no_credentials(self):
+        self.runner.map(self.flow, "9", self.inventory, self.tmp / "spec.yaml")
+        record = self.record()
+        self.assertEqual(record["argv"][0], "map")
+        self.assertNotIn("NETBOX_TOKEN", record["env"])
+
+    def test_import_needs_a_source(self):
+        with self.assertRaises(RunnerError):
+            self.runner.import_(self.flow, "9", self.inventory)
 
     def test_missing_binary(self):
         runner = Runner(self.tmp / "work", alembic_path=str(self.tmp / "nope"))
@@ -183,6 +208,41 @@ class RealBinaryTests(unittest.TestCase):
         self.edit_store("edited")
         drift = self.runner.drift(self.flow, "2", self.inventory)
         self.assertEqual(drift.report.counts(), {"changed": 1, "missing": 0, "extra": 0})
+
+    def test_import_then_plan_into_another_backend(self):
+        # the flow's own target starts out converged; a second flow reads it as
+        # its source and plans the same objects into an empty store.
+        self.runner.apply(self.flow, "1", *self._plan("1"))
+        other = self.tmp / "other.json"
+        flow = Flow(
+            "2",
+            Backend(
+                "external",
+                {"args": [str(FIXTURES / "store_adapter.py")], "setup": {"path": str(other)}},
+                command=sys.executable,
+            ),
+            source=self.flow.target,
+        )
+        imported = self.runner.import_(flow, "1", self.inventory)
+        self.assertIsNone(imported.error, imported.completed.stderr)
+        doc = json.loads(imported.inventory.read_text())
+        self.assertEqual([o["key"] for o in doc["objects"]], [{"slug": "fra1"}])
+
+        outcome = self.runner.plan(flow, "1", imported.inventory)
+        self.assertIsNone(outcome.error, outcome.completed.stderr)
+        self.assertEqual(outcome.plan.summary(), {"create": 1, "update": 0, "delete": 0})
+
+    def test_map_reshapes_an_inventory(self):
+        spec = self.tmp / "map.yaml"
+        spec.write_text(
+            "schema:\n  types:\n    dcim.location:\n      key:\n        name: { type: string }\n"
+            "rules:\n  - name: sites\n    match: dcim.site\n    emit:\n"
+            '      type: dcim.location\n      key: { name: "${attrs.name}" }\n'
+        )
+        mapped = self.runner.map(self.flow, "1", self.inventory, spec)
+        self.assertIsNone(mapped.error, mapped.completed.stderr)
+        doc = json.loads(mapped.inventory.read_text())
+        self.assertEqual([o["type"] for o in doc["objects"]], ["dcim.location"])
 
     def _plan(self, run):
         plan = self.runner.plan(self.flow, run, self.inventory).plan

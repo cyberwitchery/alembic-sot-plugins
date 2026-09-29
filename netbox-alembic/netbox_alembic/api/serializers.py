@@ -48,6 +48,7 @@ class BackendSerializer(NetBoxModelSerializer):
 class FlowSerializer(NetBoxModelSerializer):
     url = serializers.HyperlinkedIdentityField(view_name=f"{API}:flow-detail")
     data_source = DataSourceSerializer(nested=True)
+    source = BackendSerializer(nested=True, required=False, allow_null=True)
     target = BackendSerializer(nested=True)
 
     class Meta:
@@ -60,6 +61,8 @@ class FlowSerializer(NetBoxModelSerializer):
             "data_source",
             "root",
             "inventory",
+            "source",
+            "map_spec",
             "target",
             "allow_delete",
             "no_adopt",

@@ -8,12 +8,21 @@ from .runner import (
     Completed,
     DriftOutcome,
     Flow,
+    InventoryOutcome,
     PlanOutcome,
     Runner,
     RunnerError,
     StaleCheck,
 )
-from .status import ACTIVE, TERMINAL, TRANSITIONS, RunStatus, TransitionError, check_transition
+from .status import (
+    ACTIVE,
+    TERMINAL,
+    TRANSITIONS,
+    RunStatus,
+    TransitionError,
+    check_transition,
+    failure_status,
+)
 from .workspace import Workspace, WorkspaceError
 
 __version__ = "0.1.0"
@@ -35,6 +44,7 @@ __all__ = [
     "DriftOutcome",
     "DriftReport",
     "Flow",
+    "InventoryOutcome",
     "Plan",
     "PlanOutcome",
     "RunStatus",
@@ -46,5 +56,6 @@ __all__ = [
     "Workspace",
     "WorkspaceError",
     "check_transition",
+    "failure_status",
     "token_env",
 ]
