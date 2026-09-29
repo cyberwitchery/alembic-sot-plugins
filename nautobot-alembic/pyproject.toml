@@ -19,11 +19,12 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: System :: Networking",
 ]
-dependencies = ["alembic-runner==0.1.0"]
+dependencies = ["alembic-runner==0.1.0", "nautobot>=3.2,<4"]
 
 [project.urls]
 Homepage = "https://github.com/cyberwitchery/alembic-sot-plugins"
 Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
 
 [tool.hatch.build.targets.wheel]
+exclude = ["tests"]
 packages = ["nautobot_alembic"]

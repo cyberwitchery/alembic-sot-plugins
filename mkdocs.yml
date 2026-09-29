@@ -1,0 +1,23 @@
+site_name: alembic-sot-plugins
+site_url: https://alembic-sot-plugins.readthedocs.io
+repo_url: https://github.com/cyberwitchery/alembic-sot-plugins
+repo_name: cyberwitchery/alembic-sot-plugins
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+
+nav:
+  - home: index.md
+  - how a run goes: runs.md
+  - netbox: netbox.md
+  - nautobot: nautobot.md
+  - development: development.md
+  - changelog: https://github.com/cyberwitchery/alembic-sot-plugins/blob/main/CHANGELOG.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences

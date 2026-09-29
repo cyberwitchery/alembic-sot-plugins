@@ -104,12 +104,27 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install --upgrade build
-      - run: python -m build alembic-runner && python -m build netbox-alembic && python -m build nautobot-alembic
+      - run: python -m pip install --upgrade build twine
+      - run: |
+          for package in alembic-runner netbox-alembic nautobot-alembic; do
+            python -m build -o dist "$package"
+          done
+      - run: twine check --strict dist/*
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r docs/requirements.txt
+      - run: mkdocs build --strict
 
   success:
     name: success
-    needs: [lint, runner, netbox, nautobot, build]
+    needs: [lint, runner, netbox, nautobot, build, docs]
     runs-on: ubuntu-latest
     if: always()
     steps:

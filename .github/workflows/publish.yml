@@ -1,0 +1,63 @@
+name: publish
+
+# a v* tag publishes all three packages at the tag's version. they release in
+# lockstep: the plugins pin alembic-runner to the same version.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: check versions
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python - <<'EOF'
+          import os, tomllib
+          want = os.environ["REF_NAME"].removeprefix("v")
+          bad = []
+          for package in ("alembic-runner", "netbox-alembic", "nautobot-alembic"):
+              with open(f"{package}/pyproject.toml", "rb") as f:
+                  project = tomllib.load(f)["project"]
+              if project["version"] != want:
+                  bad.append(f"{package} is {project['version']}")
+              for dep in project["dependencies"]:
+                  if dep.startswith("alembic-runner") and dep != f"alembic-runner=={want}":
+                      bad.append(f"{package} depends on {dep}")
+          if bad:
+              raise SystemExit(f"tag {want} does not match: " + "; ".join(bad))
+          EOF
+      - name: build
+        run: |
+          pip install build
+          for package in alembic-runner netbox-alembic nautobot-alembic; do
+            python -m build -o dist "$package"
+          done
+      - name: generate sbom
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          pip install cyclonedx-bom
+          python -m pip freeze --all | cyclonedx-py requirements - -o "/tmp/sbom-${REF_NAME}.cdx.json"
+      - name: upload sbom
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ github.ref_name }}
+          path: /tmp/sbom-${{ github.ref_name }}.cdx.json
+      - name: attach sbom to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: /tmp/sbom-${{ github.ref_name }}.cdx.json
+      - name: publish to pypi
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -77,7 +77,11 @@ services:
     # the app's jobs run on their own queue, like netbox-alembic's.
     command: ["nautobot-server", "celery", "worker", "-l", "INFO", "-Q", "default,alembic"]
     healthcheck:
-      disable: true
+      test: ["CMD", "bash", "-c", "nautobot-server celery inspect ping --destination celery@$$HOSTNAME"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
 
 volumes:
   alembic-work:

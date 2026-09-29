@@ -29,6 +29,7 @@ Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
 dev = ["coverage[toml]", "ruff"]
 
 [tool.hatch.build.targets.wheel]
+exclude = ["tests"]
 packages = ["src/alembic_runner"]
 
 [tool.ruff]

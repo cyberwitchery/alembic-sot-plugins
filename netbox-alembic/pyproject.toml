@@ -26,6 +26,7 @@ Homepage = "https://github.com/cyberwitchery/alembic-sot-plugins"
 Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
 
 [tool.hatch.build.targets.wheel]
+exclude = ["tests"]
 packages = ["netbox_alembic"]
 
 [tool.ruff]
