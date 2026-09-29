@@ -1,6 +1,6 @@
 # changelog
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-09-29
 
 - first release of `alembic-runner`, `netbox-alembic` (netbox 4.6+) and `nautobot-alembic` (nautobot 3.2+)
 - plan in a background job, review the plan in the ui, approve as someone other than the requester, and apply exactly the approved plan after a stale check against the target
