@@ -1,6 +1,6 @@
 from nautobot.apps import NautobotAppConfig, nautobot_database_ready
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class AlembicConfig(NautobotAppConfig):
@@ -17,7 +17,8 @@ class AlembicConfig(NautobotAppConfig):
         "alembic_path": "alembic",
         "work_root": "/opt/alembic-work",
         "state": {"backend": "local"},
-        "external_adapters": {},
+        # alembic's plugins directory: each plugin in it is a backend kind.
+        "plugins_dir": None,
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
         "run_timeout_seconds": 1800,

@@ -40,15 +40,8 @@ PLUGINS_CONFIG = {
         "work_root": "/var/lib/nautobot-alembic",
         # identity state. "local" keeps it in each flow's directory.
         "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
-        # external adapter binaries by name. a backend names one, never a path.
-        # an adapter that reads its token from a variable of its own names it.
-        "external_adapters": {
-            "mybackend": "/usr/local/bin/alembic-adapter-mybackend",
-            "other": {
-                "command": "/usr/local/bin/alembic-adapter-other",
-                "token_env": "OTHER_TOKEN",
-            },
-        },
+        # alembic's plugins directory. each plugin in it is a backend kind.
+        "plugins_dir": "/etc/alembic/plugins",
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
         "run_timeout_seconds": 1800,
@@ -57,7 +50,9 @@ PLUGINS_CONFIG = {
 ```
 
 there is no credentials setting: a backend's token comes from its secrets group
-when the job runs, through whichever secrets provider holds it. the same
+when the job runs, through whichever secrets provider holds it. a plugin
+backend (any kind that is an alembic plugin in `plugins_dir`) takes no secrets
+group: its plugin file is its whole config. the same
 environment rules apply as in netbox: alembic sees only the credentials of the
 backend each command talks to.
 

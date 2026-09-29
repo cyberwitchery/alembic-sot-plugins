@@ -1,5 +1,9 @@
 # changelog
 
+## [0.2.0] - 2026-09-29
+
+- alembic plugins are backend kinds: every plugin in `plugins_dir` is offered in the form next to netbox and nautobot, and a run uses it as `alembic --backend <name>`. this replaces the `external` kind and the `external_adapters` setting
+
 ## [0.1.0] - 2026-09-29
 
 - first release of `alembic-runner`, `netbox-alembic` (netbox 4.6+) and `nautobot-alembic` (nautobot 3.2+)

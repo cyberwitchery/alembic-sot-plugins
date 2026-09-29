@@ -8,7 +8,7 @@ from .models import Backend, Flow, Run, RunKindChoices, RunStatusChoices
 class BackendFilterSet(NetBoxModelFilterSet):
     class Meta:
         model = Backend
-        fields = ("id", "name", "kind", "credential", "external_adapter")
+        fields = ("id", "name", "kind", "credential")
 
     def search(self, queryset, name, value):
         return queryset.filter(Q(name__icontains=value) | Q(description__icontains=value))

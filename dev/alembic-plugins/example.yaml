@@ -1,0 +1,5 @@
+# an alembic plugin: alembic runs it as `--backend example`, and the netbox
+# plugin offers `example` as a backend kind. the adapter is not installed, so a
+# run against it fails.
+backend: external
+command: /usr/local/bin/alembic-adapter-example

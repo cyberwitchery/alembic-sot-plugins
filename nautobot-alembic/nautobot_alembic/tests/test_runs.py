@@ -18,10 +18,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase, override_settings
-from nautobot.extras.models import GitRepository
+from nautobot.extras.models import GitRepository, SecretsGroup
 from nautobot.users.models import ObjectPermission
 
-from nautobot_alembic import actions, jobs
+from nautobot_alembic import actions, jobs, settings
 from nautobot_alembic.models import Backend, Flow, Run
 
 User = get_user_model()
@@ -267,23 +267,42 @@ class WorkflowTests(RunTestCase):
         self.assertEqual(cancel.call_args.args[0].pk, run.pk)
 
 
-@override_settings(
-    PLUGINS_CONFIG={"nautobot_alembic": {"external_adapters": {"store": "/usr/bin/adapter"}}}
-)
+# an alembic plugins directory with two plugins, as an admin would install them.
+PLUGINS_DIR = tempfile.mkdtemp(prefix="nautobot-alembic-plugins-")
+for _name in ("store", "Lab"):
+    Path(PLUGINS_DIR, f"{_name}.yaml").write_text("backend: external\ncommand: /bin/true\n")
+PLUGINS = {"nautobot_alembic": {"plugins_dir": PLUGINS_DIR}}
+
+
+@override_settings(PLUGINS_CONFIG=PLUGINS)
 class BackendValidationTests(TestCase):
     def check(self, **fields):
         Backend(name="b", **fields).full_clean()
 
     def test_valid(self):
         self.check(kind="nautobot", config={"url": "https://n"})
-        self.check(kind="external", external_adapter="store", config={"setup": {"a": 1}})
+        self.check(kind="store")
 
     def test_invalid(self):
+        group = SecretsGroup.objects.create(name="g")
         for fields in (
             {"kind": "netbox", "config": {"url": "x", "token": "leak"}},
-            {"kind": "external", "external_adapter": "store", "config": {"command": "/bin/sh"}},
-            {"kind": "external", "external_adapter": "nope"},
-            {"kind": "netbox", "external_adapter": "store"},
+            {"kind": "store", "config": {"setup": {"a": 1}}},
+            {"kind": "store", "secrets_group": group},
+            {"kind": "nope"},
+            {"kind": "external"},
         ):
             with self.subTest(fields=fields), self.assertRaises(ValidationError):
                 self.check(**fields)
+
+
+@override_settings(PLUGINS_CONFIG=PLUGINS)
+class PluginKindTests(TestCase):
+    def test_a_plugin_is_a_kind(self):
+        kinds = [kind for kind, _ in settings.kind_choices()]
+        self.assertEqual(kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "lab", "store"])
+
+    def test_a_plugin_backend_runs_as_the_plugin(self):
+        backend = settings.runner_backend(Backend(name="l", kind="lab"))
+        self.assertTrue(backend.plugin)
+        self.assertEqual(backend.kind, "lab")

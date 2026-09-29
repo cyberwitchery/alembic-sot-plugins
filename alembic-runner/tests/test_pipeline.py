@@ -172,6 +172,27 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(planned.fields["input_entry"], DERIVED_ENTRY)
         self.assertEqual(list(planned.fields["input"]), [DERIVED_ENTRY])
 
+    def test_a_plugin_backend_runs_by_name(self):
+        plugins = self.tmp / "plugins"
+        plugins.mkdir()
+        (plugins / "Store.yaml").write_text(
+            json.dumps(
+                {
+                    "backend": "external",
+                    "command": sys.executable,
+                    "args": [str(FIXTURES / "store_adapter.py")],
+                    "setup": {"path": str(self.tmp / "plugin-store.json")},
+                }
+            )
+        )
+        self.runner.plugins_dir = str(plugins)
+        self.flow = Flow("3", Backend("store", plugin=True))
+        planned = self.plan("1")
+        self.assertEqual(planned.status, S.AWAITING_APPROVAL, planned.fields.get("error"))
+        self.assertEqual(self.apply("1", planned).status, S.APPLIED)
+        self.assertTrue((self.tmp / "plugin-store.json").exists())
+        self.assertEqual(self.plan("2").status, S.NO_CHANGES)
+
     def test_a_map_spec_is_relative_to_the_root(self):
         files = {"schemas/inv.yaml": INVENTORY, "maps/upper.yaml": MAP}
         planned = self.plan("1", files=files, entry="schemas/inv.yaml", map_spec="maps/upper.yaml")

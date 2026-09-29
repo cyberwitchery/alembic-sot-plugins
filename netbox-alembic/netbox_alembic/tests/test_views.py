@@ -1,6 +1,8 @@
 """the ui and the rest api: who may do what, and what each page shows."""
 
 import json
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from alembic_runner import Plan, RunStatus
@@ -98,6 +100,17 @@ class PageTests(ViewTestCase):
         page = self.client_for(self.requester).get(run.get_absolute_url()).content.decode()
         self.assertNotIn("Approve and apply", page)
         self.assertIn("Someone other than the requester approves this run.", page)
+
+    def test_backend_form_offers_plugins_as_kinds(self):
+        plugins = tempfile.mkdtemp(prefix="netbox-alembic-plugins-")
+        Path(plugins, "lab.yaml").write_text("backend: external\ncommand: /bin/true\n")
+        config = {"netbox_alembic": {**SETTINGS["netbox_alembic"], "plugins_dir": plugins}}
+        admin = User.objects.create_user("form-admin", is_superuser=True)
+        with override_settings(PLUGINS_CONFIG=config):
+            page = self.client_for(admin).get(reverse("plugins:netbox_alembic:backend_add"))
+        self.assertContains(page, '<option value="lab">lab</option>', html=True)
+        self.assertContains(page, '<option value="netbox">NetBox</option>', html=True)
+        self.assertNotContains(page, 'value="external"')
 
     def test_plan_download_is_the_stored_bytes(self):
         run = self.waiting_run()

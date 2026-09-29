@@ -1,4 +1,4 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, KINDS, RunStatus
+from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -14,19 +14,7 @@ from nautobot.apps.models import (
     extras_features,
 )
 
-from .settings import setting
-
-KIND_LABELS = {
-    "netbox": "NetBox",
-    "nautobot": "Nautobot",
-    "infrahub": "Infrahub",
-    "peeringdb": "PeeringDB",
-    "external": "External adapter",
-}
-
-
-class BackendKindChoices(ChoiceSet):
-    CHOICES = tuple((kind, KIND_LABELS[kind]) for kind in KINDS)
+from .settings import kind_choices
 
 
 class RunKindChoices(ChoiceSet):
@@ -69,7 +57,10 @@ class Backend(PrimaryModel):
     """a system alembic can plan against, or import from."""
 
     name = models.CharField(max_length=CHARFIELD_MAX_LENGTH, unique=True)
-    kind = models.CharField(max_length=30, choices=BackendKindChoices)
+    kind = models.CharField(
+        max_length=CHARFIELD_MAX_LENGTH,
+        help_text="A built-in kind, or the name of an alembic plugin.",
+    )
     config = models.JSONField(
         default=dict,
         blank=True,
@@ -83,11 +74,6 @@ class Backend(PrimaryModel):
         related_name="+",
         help_text="Holds the backend's token as an HTTP(S) access, token secret.",
     )
-    external_adapter = models.CharField(
-        max_length=CHARFIELD_MAX_LENGTH,
-        blank=True,
-        help_text="Name of an adapter binary in app settings, for external backends.",
-    )
     description = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
 
     class Meta:
@@ -96,10 +82,26 @@ class Backend(PrimaryModel):
     def __str__(self):
         return self.name
 
+    @property
+    def kind_label(self):
+        return dict(kind_choices()).get(self.kind, self.kind)
+
     def clean(self):
         super().clean()
         if not isinstance(self.config, dict):
             raise ValidationError({"config": "Config must be a mapping."})
+        if self.kind not in dict(kind_choices()):
+            raise ValidationError({"kind": "No built-in kind or alembic plugin by that name."})
+        if self.kind not in CONFIG_KEYS:
+            # a plugin's file is its whole config, its environment included.
+            if self.config:
+                raise ValidationError(
+                    {"config": "A plugin backend takes no config: its plugin file is its config."}
+                )
+            if self.secrets_group_id:
+                raise ValidationError(
+                    {"secrets_group": "A plugin backend reads its credentials as its file says."}
+                )
         allowed = CONFIG_KEYS.get(self.kind, frozenset())
         unknown = set(self.config) - allowed
         if unknown:
@@ -109,13 +111,6 @@ class Backend(PrimaryModel):
                     f"it takes {', '.join(sorted(allowed))}."
                 }
             )
-        if self.kind == "external":
-            if self.external_adapter not in setting("external_adapters"):
-                raise ValidationError(
-                    {"external_adapter": "No adapter by that name in app settings."}
-                )
-        elif self.external_adapter:
-            raise ValidationError({"external_adapter": "Only external backends name an adapter."})
 
 
 @extras_features("custom_links", "custom_validators", "export_templates", "graphql", "webhooks")

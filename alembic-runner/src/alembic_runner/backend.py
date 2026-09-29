@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 KINDS = ("netbox", "nautobot", "infrahub", "peeringdb", "external")
@@ -31,6 +32,25 @@ class BackendError(ValueError):
     pass
 
 
+def plugin_names(plugins_dir: str | Path | None) -> list[str]:
+    """the alembic plugins in `plugins_dir`, by the name `--backend` takes. alembic
+    reads every .yaml or .yml file there and names the plugin for the file's stem,
+    lowercased."""
+    if not plugins_dir:
+        return []
+    try:
+        entries = list(Path(plugins_dir).iterdir())
+    except OSError:
+        return []
+    return sorted(
+        {
+            entry.stem.lower()
+            for entry in entries
+            if entry.suffix.lower() in (".yaml", ".yml") and entry.stem and entry.is_file()
+        }
+    )
+
+
 @dataclass(frozen=True)
 class Backend:
     """one backend as a run sees it.
@@ -38,14 +58,21 @@ class Backend:
     `config` is the non-secret part of an alembic backend config, without the
     `backend:` key. `env` holds the credentials, by variable name. an external
     backend's `command` comes from host settings, never from stored config.
+    a `plugin` backend is an alembic plugin, named by `kind`: its plugin file is
+    its whole config.
     """
 
     kind: str
     config: dict[str, Any] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
     command: str | None = None
+    plugin: bool = False
 
     def __post_init__(self) -> None:
+        if self.plugin:
+            if not self.kind or self.config or self.command:
+                raise BackendError(f"plugin backend {self.kind!r} takes no config or command")
+            return
         if self.kind not in KINDS:
             raise BackendError(f"unknown backend kind {self.kind!r}")
         unknown = self.config.keys() - CONFIG_KEYS[self.kind]

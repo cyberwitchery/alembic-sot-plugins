@@ -11,6 +11,12 @@ from rest_framework.decorators import action
 from . import actions, filters, forms, tables
 from .api import serializers
 from .models import Backend, Flow, Run, RunKindChoices, RunStatusChoices
+from .settings import kind_choices
+
+
+def kind_label(value):
+    """a backend kind as the form names it."""
+    return dict(kind_choices()).get(value, value)
 
 
 def status_badge(value):
@@ -57,7 +63,8 @@ class BackendUIViewSet(
             ui.ObjectFieldsPanel(
                 section=ui.SectionChoices.LEFT_HALF,
                 weight=100,
-                fields=["name", "kind", "secrets_group", "external_adapter", "description"],
+                fields=["name", "kind", "secrets_group", "description"],
+                value_transforms={"kind": [kind_label]},
             ),
             ui.ObjectFieldsPanel(
                 section=ui.SectionChoices.RIGHT_HALF,

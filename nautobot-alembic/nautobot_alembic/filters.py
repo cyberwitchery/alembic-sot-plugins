@@ -5,16 +5,17 @@ from nautobot.apps.filters import (
     SearchFilter,
 )
 
-from .models import Backend, BackendKindChoices, Flow, Run, RunKindChoices, RunStatusChoices
+from .models import Backend, Flow, Run, RunKindChoices, RunStatusChoices
+from .settings import kind_choices
 
 
 class BackendFilterSet(NautobotFilterSet):
     q = SearchFilter(filter_predicates={"name": "icontains", "description": "icontains"})
-    kind = django_filters.MultipleChoiceFilter(choices=BackendKindChoices)
+    kind = django_filters.MultipleChoiceFilter(choices=kind_choices)
 
     class Meta:
         model = Backend
-        fields = ("id", "name", "kind", "secrets_group", "external_adapter", "tags")
+        fields = ("id", "name", "kind", "secrets_group", "tags")
 
 
 class FlowFilterSet(NautobotFilterSet):

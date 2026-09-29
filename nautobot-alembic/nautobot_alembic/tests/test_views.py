@@ -1,6 +1,8 @@
 """the ui and the rest api: who may do what, and what each page shows."""
 
 import json
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from alembic_runner import Plan, RunStatus
@@ -100,6 +102,16 @@ class PageTests(ViewTestCase):
                 )
                 errors = [str(m) for m in get_messages(response.wsgi_request)]
                 self.assertEqual(errors, [])
+
+    def test_backend_form_offers_plugins_as_kinds(self):
+        plugins = tempfile.mkdtemp(prefix="nautobot-alembic-plugins-")
+        Path(plugins, "lab.yaml").write_text("backend: external\ncommand: /bin/true\n")
+        admin = User.objects.create_user(username="form-admin", is_superuser=True)
+        with override_settings(PLUGINS_CONFIG={"nautobot_alembic": {"plugins_dir": plugins}}):
+            page = self.client_for(admin).get(reverse("plugins:nautobot_alembic:backend_add"))
+        self.assertContains(page, '<option value="lab">lab</option>', html=True)
+        self.assertContains(page, '<option value="nautobot">Nautobot</option>', html=True)
+        self.assertNotContains(page, 'value="external"')
 
     def test_decision_is_offered_only_to_an_approver(self):
         run = self.waiting_run()

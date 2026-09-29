@@ -7,6 +7,7 @@ from .models import Backend, Flow, Run
 class BackendTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
+    kind = tables.Column(accessor="kind_label", order_by=("kind",))
     secrets_group = tables.Column(linkify=True)
     actions = ButtonsColumn(Backend)
 
@@ -17,7 +18,6 @@ class BackendTable(BaseTable):
             "name",
             "kind",
             "secrets_group",
-            "external_adapter",
             "description",
             "actions",
         )

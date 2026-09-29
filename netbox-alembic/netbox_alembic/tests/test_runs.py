@@ -22,16 +22,25 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from users.models import ObjectPermission, User
 
-from netbox_alembic import AlembicConfig, actions
+from netbox_alembic import AlembicConfig, actions, settings
 from netbox_alembic.jobs import ApplyRunJob, PlanRunJob
 from netbox_alembic.models import Backend, Flow, Run
+
+# an alembic plugins directory with two plugins, as an admin would install them.
+PLUGINS_DIR = tempfile.mkdtemp(prefix="netbox-alembic-plugins-")
+for _name in ("store", "Lab"):
+    Path(PLUGINS_DIR, f"{_name}.yaml").write_text("backend: external\ncommand: /bin/true\n")
 
 PLUGIN_SETTINGS = {
     "netbox_alembic": {
         **AlembicConfig.default_settings,
         "work_root": "/tmp/netbox-alembic-tests",
-        "credentials": {"netbox": {"token": "TEST_NETBOX_TOKEN"}, "other": {"token": "TEST_OTHER"}},
-        "external_adapters": {"store": "/usr/local/bin/alembic-adapter-store"},
+        "credentials": {
+            "netbox": {"token": "TEST_NETBOX_TOKEN"},
+            "other": {"token": "TEST_OTHER"},
+            "lab": {"env": {"LAB_TOKEN": "TEST_OTHER"}},
+        },
+        "plugins_dir": PLUGINS_DIR,
     }
 }
 
@@ -379,20 +388,37 @@ class BackendValidationTests(TestCase):
 
     def test_valid(self):
         self.check(kind="nautobot", config={"url": "https://n"}, credential="other")
-        self.check(kind="external", external_adapter="store", config={"setup": {"a": 1}})
+        self.check(kind="store")
+        self.check(kind="lab", credential="lab")
 
     def test_invalid(self):
         cases = [
             {"kind": "netbox", "config": {"url": "x", "token": "leak"}},
-            {"kind": "external", "external_adapter": "store", "config": {"command": "/bin/sh"}},
-            {"kind": "external", "external_adapter": "store", "config": {"env": {"A": "b"}}},
-            {"kind": "external", "external_adapter": "nope"},
-            {"kind": "netbox", "external_adapter": "store"},
+            {"kind": "store", "config": {"setup": {"a": 1}}},
+            {"kind": "store", "config": {"command": "/bin/sh"}},
+            {"kind": "nope"},
+            {"kind": "external"},
             {"kind": "netbox", "credential": "nope"},
         ]
         for fields in cases:
             with self.subTest(fields=fields), self.assertRaises(ValidationError):
                 self.check(**fields)
+
+
+@override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)
+class PluginKindTests(TestCase):
+    def test_a_plugin_is_a_kind(self):
+        kinds = [kind for kind, _ in settings.kind_choices()]
+        self.assertEqual(kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "lab", "store"])
+
+    @mock.patch.dict("os.environ", {"TEST_OTHER": "secret"})
+    def test_a_plugin_backend_runs_as_the_plugin(self):
+        backend = settings.runner_backend(Backend(name="l", kind="lab", credential="lab"))
+        self.assertTrue(backend.plugin)
+        self.assertEqual(backend.kind, "lab")
+        self.assertEqual(backend.env, {"LAB_TOKEN": "secret"})
+        with self.assertRaises(settings.SettingsError):
+            settings.runner_backend(Backend(name="s", kind="store", credential="other"))
 
 
 class FlowValidationTests(TestCase):

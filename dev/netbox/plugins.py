@@ -5,6 +5,8 @@ PLUGINS_CONFIG = {
         "credentials": {
             "netbox": {"token": "ALEMBIC_NETBOX_TOKEN"},
         },
+        # dev/alembic-plugins: each plugin in it is a backend kind.
+        "plugins_dir": "/opt/alembic-plugins",
     },
 }
 

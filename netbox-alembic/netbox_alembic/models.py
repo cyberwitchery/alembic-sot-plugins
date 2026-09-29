@@ -1,4 +1,4 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, KINDS, RunStatus
+from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -9,19 +9,7 @@ from netbox.models import ChangeLoggedModel, NetBoxModel
 from netbox.models.features import JobsMixin
 from utilities.choices import ChoiceSet
 
-from .settings import setting
-
-KIND_LABELS = {
-    "netbox": "NetBox",
-    "nautobot": "Nautobot",
-    "infrahub": "Infrahub",
-    "peeringdb": "PeeringDB",
-    "external": "External adapter",
-}
-
-
-class BackendKindChoices(ChoiceSet):
-    CHOICES = [(kind, KIND_LABELS[kind]) for kind in KINDS]
+from .settings import kind_choices, setting
 
 
 class RunKindChoices(ChoiceSet):
@@ -58,7 +46,11 @@ class Backend(NetBoxModel):
     """a system alembic can plan against."""
 
     name = models.CharField(verbose_name=_("name"), max_length=100, unique=True)
-    kind = models.CharField(verbose_name=_("kind"), max_length=30, choices=BackendKindChoices)
+    kind = models.CharField(
+        verbose_name=_("kind"),
+        max_length=100,
+        help_text=_("A built-in kind, or the name of an alembic plugin."),
+    )
     config = models.JSONField(
         verbose_name=_("config"),
         default=dict,
@@ -72,12 +64,6 @@ class Backend(NetBoxModel):
         help_text=_(
             "Name of a credential in plugin settings. The secret stays out of the database."
         ),
-    )
-    external_adapter = models.CharField(
-        verbose_name=_("external adapter"),
-        max_length=100,
-        blank=True,
-        help_text=_("Name of an adapter binary in plugin settings, for external backends."),
     )
     description = models.CharField(verbose_name=_("description"), max_length=200, blank=True)
     comments = models.TextField(verbose_name=_("comments"), blank=True)
@@ -93,29 +79,31 @@ class Backend(NetBoxModel):
     def get_absolute_url(self):
         return reverse("plugins:netbox_alembic:backend", args=[self.pk])
 
+    @property
+    def kind_label(self):
+        return dict(kind_choices()).get(self.kind, self.kind)
+
     def clean(self):
         super().clean()
         if not isinstance(self.config, dict):
             raise ValidationError({"config": _("Config must be a mapping.")})
-        unknown = set(self.config) - CONFIG_KEYS.get(self.kind, frozenset())
+        if self.kind not in dict(kind_choices()):
+            raise ValidationError({"kind": _("No built-in kind or alembic plugin by that name.")})
+        if self.kind not in CONFIG_KEYS and self.config:
+            raise ValidationError(
+                {"config": _("A plugin backend takes no config: its plugin file is its config.")}
+            )
+        allowed = CONFIG_KEYS.get(self.kind, frozenset())
+        unknown = set(self.config) - allowed
         if unknown:
             raise ValidationError(
                 {
                     "config": _("A {kind} backend cannot set {keys}; it takes {allowed}").format(
                         kind=self.kind,
                         keys=", ".join(sorted(unknown)),
-                        allowed=", ".join(sorted(CONFIG_KEYS.get(self.kind, ()))),
+                        allowed=", ".join(sorted(allowed)),
                     )
                 }
-            )
-        if self.kind == "external":
-            if self.external_adapter not in setting("external_adapters"):
-                raise ValidationError(
-                    {"external_adapter": _("No adapter by that name in plugin settings.")}
-                )
-        elif self.external_adapter:
-            raise ValidationError(
-                {"external_adapter": _("Only external backends name an adapter.")}
             )
         if self.credential and self.credential not in setting("credentials"):
             raise ValidationError({"credential": _("No credential by that name in settings.")})

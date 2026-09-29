@@ -91,6 +91,7 @@ services:
       - ../alembic-runner:/opt/plugins/alembic-runner:ro
       - alembic-work:/opt/alembic-work
       - ./inventory:/opt/alembic-inventory:ro
+      - ./alembic-plugins:/opt/alembic-plugins:ro
     healthcheck:
       test:
         [
@@ -138,6 +139,7 @@ services:
       - ../alembic-runner:/opt/plugins/alembic-runner:ro
       - alembic-work:/opt/alembic-work
       - ./inventory:/opt/alembic-inventory:ro
+      - ./alembic-plugins:/opt/alembic-plugins:ro
     command:
       - /opt/netbox/venv/bin/python
       - /opt/netbox/netbox/manage.py

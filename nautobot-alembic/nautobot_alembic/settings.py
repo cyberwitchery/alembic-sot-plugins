@@ -2,7 +2,7 @@
 
 from alembic_runner import Backend as RunnerBackend
 from alembic_runner import Flow as RunnerFlow
-from alembic_runner import Runner, StateStore, token_env
+from alembic_runner import Runner, StateStore, plugin_names, token_env
 from django.conf import settings
 
 
@@ -24,7 +24,25 @@ def runner():
         alembic_path=setting("alembic_path"),
         timeout=setting("run_timeout_seconds"),
         rust_log=setting("rust_log"),
+        plugins_dir=setting("plugins_dir"),
     )
+
+
+# the backends alembic has built in, as the ui names them. every other kind is
+# an alembic plugin in plugins_dir.
+BUILTIN_KINDS = {
+    "netbox": "NetBox",
+    "nautobot": "Nautobot",
+    "infrahub": "Infrahub",
+    "peeringdb": "PeeringDB",
+}
+
+
+def kind_choices():
+    """(kind, label) for every kind a backend can have: the built-in ones, then
+    the alembic plugins in plugins_dir."""
+    plugins = [(name, name) for name in plugin_names(setting("plugins_dir"))]
+    return [*BUILTIN_KINDS.items(), *(p for p in plugins if p[0] not in BUILTIN_KINDS)]
 
 
 def _token(backend):
@@ -43,23 +61,12 @@ def _token(backend):
 
 
 def runner_backend(backend):
-    """the alembic view of a stored backend, with its token from its secrets group."""
-    env = {}
-    command = None
-    if backend.kind == "external":
-        adapter = setting("external_adapters").get(backend.external_adapter)
-        if adapter is None:
-            raise SettingsError(f"no external adapter {backend.external_adapter!r} in settings")
-        # an adapter is a path, or {"command": path, "token_env": NAME} for one
-        # that reads its token from a variable of its own.
-        if isinstance(adapter, str):
-            adapter = {"command": adapter}
-        command = adapter["command"]
-        if backend.secrets_group_id and adapter.get("token_env"):
-            env[adapter["token_env"]] = _token(backend)
-    elif backend.secrets_group_id:
-        env = token_env(backend.kind, _token(backend))
-    return RunnerBackend(backend.kind, dict(backend.config), env=env, command=command)
+    """the alembic view of a stored backend, with its token from its secrets group.
+    a plugin kind runs as that alembic plugin."""
+    if backend.kind not in BUILTIN_KINDS:
+        return RunnerBackend(backend.kind, plugin=True)
+    env = token_env(backend.kind, _token(backend)) if backend.secrets_group_id else {}
+    return RunnerBackend(backend.kind, dict(backend.config), env=env)
 
 
 def runner_flow(flow):

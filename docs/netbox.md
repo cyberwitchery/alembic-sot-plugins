@@ -32,14 +32,14 @@ PLUGINS_CONFIG = {
         # identity state. "local" keeps it in each flow's directory.
         "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
         # credentials by name: each value names worker environment variables.
-        # "token" feeds the adapter's own token variable (NETBOX_TOKEN, ...);
-        # "env" sets adapter variables for external adapters.
+        # "token" feeds a built-in adapter's token variable (NETBOX_TOKEN, ...);
+        # "env" sets the variables a plugin's adapter reads.
         "credentials": {
             "netbox": {"token": "ALEMBIC_NETBOX_TOKEN"},
             "lab-nautobot": {"token": "LAB_NAUTOBOT_TOKEN"},
         },
-        # external adapter binaries by name. a backend names one, never a path.
-        "external_adapters": {"mybackend": "/usr/local/bin/alembic-adapter-mybackend"},
+        # alembic's plugins directory. each plugin in it is a backend kind.
+        "plugins_dir": "/etc/alembic/plugins",
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
         "run_timeout_seconds": 1800,
@@ -52,10 +52,14 @@ and the worker reads the value from its environment at run time. alembic runs
 with an environment built for the run, so the worker's own secrets (django
 `SECRET_KEY`, database passwords) do not reach it.
 
-a backend's config holds only connection keys (`url`, `instance`, and for
-external adapters `args`, `setup`, `timeout_seconds`). commands, working
-directories and process environments come from settings, so whoever can edit a
-backend cannot run a program on the worker.
+a backend's kind is a built-in one (netbox, nautobot, infrahub, peeringdb) or an
+[alembic plugin](https://github.com/cyberwitchery/alembic/blob/main/docs/cli.md#plugins):
+each `.yaml` file in `plugins_dir` is one, named for the file, and a run uses
+it as `alembic --backend <name>`. a built-in backend's config holds only
+connection keys (`url`, `instance`); a plugin backend has none, its plugin file
+is its config. commands, working directories and process environments come from
+files on the host, so whoever can edit a backend cannot run a program on the
+worker.
 
 ## permissions
 

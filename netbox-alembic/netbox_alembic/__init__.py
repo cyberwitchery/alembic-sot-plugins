@@ -1,6 +1,6 @@
 from netbox.plugins import PluginConfig
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class AlembicConfig(PluginConfig):
@@ -18,7 +18,8 @@ class AlembicConfig(PluginConfig):
         "work_root": "/opt/alembic-work",
         "state": {"backend": "local"},
         "credentials": {},
-        "external_adapters": {},
+        # alembic's plugins directory: each plugin in it is a backend kind.
+        "plugins_dir": None,
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
         "run_timeout_seconds": 1800,

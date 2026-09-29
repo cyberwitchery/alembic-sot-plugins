@@ -22,9 +22,8 @@ from .models import Backend, Flow, Run, RunKindChoices
 class BackendPanel(panels.ObjectAttributesPanel):
     title = _("Backend")
     name = attrs.TextAttr("name")
-    kind = attrs.ChoiceAttr("kind")
+    kind = attrs.TextAttr("kind_label", label=_("Kind"))
     credential = attrs.TextAttr("credential", style="font-monospace")
-    external_adapter = attrs.TextAttr("external_adapter", style="font-monospace")
     description = attrs.TextAttr("description")
 
 

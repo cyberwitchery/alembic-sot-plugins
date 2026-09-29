@@ -5,16 +5,18 @@ from netbox.forms import NetBoxModelFilterSetForm, NetBoxModelForm
 from utilities.forms.fields import CommentField, DynamicModelChoiceField, JSONField
 from utilities.forms.rendering import FieldSet
 
-from .models import Backend, BackendKindChoices, Flow, Run, RunKindChoices, RunStatusChoices
+from .models import Backend, Flow, Run, RunKindChoices, RunStatusChoices
+from .settings import kind_choices
 
 
 class BackendForm(NetBoxModelForm):
+    kind = forms.ChoiceField(label=_("Kind"), choices=kind_choices)
     config = JSONField(label=_("Config"), required=False)
     comments = CommentField()
 
     fieldsets = (
         FieldSet("name", "kind", "description", "tags", name=_("Backend")),
-        FieldSet("config", "credential", "external_adapter", name=_("Connection")),
+        FieldSet("config", "credential", name=_("Connection")),
     )
 
     class Meta:
@@ -24,7 +26,6 @@ class BackendForm(NetBoxModelForm):
             "kind",
             "config",
             "credential",
-            "external_adapter",
             "description",
             "comments",
             "tags",
@@ -39,7 +40,7 @@ class BackendFilterForm(NetBoxModelFilterSetForm):
             "kind",
         ),
     )
-    kind = forms.MultipleChoiceField(choices=BackendKindChoices, required=False)
+    kind = forms.MultipleChoiceField(choices=kind_choices, required=False)
 
 
 class FlowForm(NetBoxModelForm):

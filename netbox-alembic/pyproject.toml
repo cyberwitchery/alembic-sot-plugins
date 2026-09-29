@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "netbox-alembic"
-version = "0.1.0"
+version = "0.2.0"
 description = "netbox plugin that plans, reviews and applies alembic runs"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: System :: Networking",
 ]
-dependencies = ["alembic-runner==0.1.0"]
+dependencies = ["alembic-runner==0.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/cyberwitchery/alembic-sot-plugins"

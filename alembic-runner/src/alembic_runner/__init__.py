@@ -1,6 +1,15 @@
 """run alembic plan, review and apply from a host application."""
 
-from .backend import CONFIG_KEYS, KINDS, TOKEN_ENV, Backend, BackendError, StateStore, token_env
+from .backend import (
+    CONFIG_KEYS,
+    KINDS,
+    TOKEN_ENV,
+    Backend,
+    BackendError,
+    StateStore,
+    plugin_names,
+    token_env,
+)
 from .plan import ApplyReport, DocumentError, DriftReport, Plan
 from .runner import (
     SUPPORTED,
@@ -25,7 +34,7 @@ from .status import (
 )
 from .workspace import Workspace, WorkspaceError
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ACTIVE",
@@ -57,5 +66,6 @@ __all__ = [
     "WorkspaceError",
     "check_transition",
     "failure_status",
+    "plugin_names",
     "token_env",
 ]

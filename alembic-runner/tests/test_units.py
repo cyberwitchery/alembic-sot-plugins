@@ -20,6 +20,7 @@ from alembic_runner import (
     WorkspaceError,
     check_transition,
     failure_status,
+    plugin_names,
     token_env,
 )
 
@@ -146,6 +147,22 @@ class BackendTests(unittest.TestCase):
     def test_unknown_kind(self):
         with self.assertRaises(BackendError):
             Backend("generic", {})
+
+    def test_plugin_names_follow_alembic(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("lab.yaml", "Prom.YML", "notes.txt", ".yaml"):
+                (Path(d) / name).write_text("backend: external\n")
+            (Path(d) / "dir.yaml").mkdir()
+            self.assertEqual(plugin_names(d), ["lab", "prom"])
+        self.assertEqual(plugin_names(None), [])
+        self.assertEqual(plugin_names("/nonexistent"), [])
+
+    def test_a_plugin_backend_has_no_config(self):
+        Backend("lab", plugin=True)
+        with self.assertRaises(BackendError):
+            Backend("lab", {"setup": {}}, plugin=True)
+        with self.assertRaises(BackendError):
+            Backend("lab", plugin=True, command="/bin/sh")
 
     def test_token_env(self):
         self.assertEqual(token_env("nautobot", "t"), {"NAUTOBOT_TOKEN": "t"})

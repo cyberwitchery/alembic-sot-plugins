@@ -131,6 +131,9 @@ class Runner:
     alembic_path: str = "alembic"
     timeout: float = 1800
     rust_log: str | None = None
+    # alembic's plugins directory. runs get a scrubbed environment and run in the
+    # flow's directory, so alembic would otherwise look in ./plugins there.
+    plugins_dir: str | None = None
 
     def version(self) -> tuple[int, int, int]:
         try:
@@ -165,7 +168,7 @@ class Runner:
         ws = self._workspace(flow)
         config = self._config(ws, run, flow)
         out = ws.run_dir(run) / "plan.json"
-        args = ["plan", "-f", str(inventory), "-o", str(out), "--backend-config", str(config)]
+        args = ["plan", "-f", str(inventory), "-o", str(out), *config]
         args += self._flags(flow)
         completed = self._run(flow, args)
         if not completed.ok:
@@ -180,10 +183,9 @@ class Runner:
         if flow.source is None:
             raise RunnerError("this flow has no source backend to import from")
         ws = self._workspace(flow)
-        config = ws.write_backend_config(run, "source", flow.source.config_document())
         out = ws.run_dir(run) / "imported.json"
         args = ["import", "-f", str(schema_inventory), "-o", str(out)]
-        args += ["--backend-config", str(config)]
+        args += self._backend_args(ws, run, "source", flow.source)
         completed = self._run(flow, args, credentials=flow.source.env)
         return self._inventory_outcome(completed, out)
 
@@ -206,7 +208,7 @@ class Runner:
         """re-plan without saving anything and compare with the approved plan."""
         ws = self._workspace(flow)
         config = self._config(ws, run, flow)
-        args = ["plan", "-f", str(inventory), "--dry-run", "--backend-config", str(config)]
+        args = ["plan", "-f", str(inventory), "--dry-run", *config]
         args += self._flags(flow)
         completed = self._run(flow, args, keep_stdout=True)
         if not completed.ok:
@@ -230,7 +232,7 @@ class Runner:
         if sha256(path.read_bytes()) != expected_sha256:
             raise RunnerError("the plan written for apply does not match the approved hash")
         out = ws.run_dir(run) / "apply.json"
-        args = ["apply", "-p", str(path), "-o", str(out), "--backend-config", str(config)]
+        args = ["apply", "-p", str(path), "-o", str(out), *config]
         if flow.allow_delete:
             args.append("--allow-delete")
         completed = self._run(flow, args)
@@ -246,7 +248,7 @@ class Runner:
         config = self._config(ws, run, flow)
         out = ws.run_dir(run) / "drift.json"
         args = ["plan", "-f", str(inventory), "--report", "-o", str(out)]
-        args += ["--backend-config", str(config)]
+        args += config
         completed = self._run(flow, args)
         if not completed.ok:
             return DriftOutcome(completed, error=completed.describe())
@@ -263,8 +265,19 @@ class Runner:
     def _workspace(self, flow: Flow) -> Workspace:
         return Workspace(self.workspace_root, flow.id)
 
-    def _config(self, ws: Workspace, run: str, flow: Flow) -> Path:
-        return ws.write_backend_config(run, "target", flow.target.config_document())
+    def _config(self, ws: Workspace, run: str, flow: Flow) -> list[str]:
+        return self._backend_args(ws, run, "target", flow.target)
+
+    @staticmethod
+    def _backend_args(ws: Workspace, run: str, name: str, backend: Backend) -> list[str]:
+        """how alembic finds a backend: a plugin by name, anything else by a config
+        file written for the run."""
+        if backend.plugin:
+            return ["--backend", backend.kind]
+        return [
+            "--backend-config",
+            str(ws.write_backend_config(run, name, backend.config_document())),
+        ]
 
     @staticmethod
     def _flags(flow: Flow) -> list[str]:
@@ -278,6 +291,8 @@ class Runner:
     def _base_env(self, home: Path) -> dict[str, str]:
         env = {name: os.environ[name] for name in PASSTHROUGH_ENV if name in os.environ}
         env["HOME"] = str(home)
+        if self.plugins_dir:
+            env["ALEMBIC_PLUGINS_DIR"] = str(self.plugins_dir)
         if self.rust_log:
             env["RUST_LOG"] = self.rust_log
         return env

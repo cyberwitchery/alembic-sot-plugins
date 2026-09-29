@@ -4,14 +4,13 @@ from netbox.api.serializers import NetBoxModelSerializer
 from rest_framework import serializers
 from users.api.serializers import UserSerializer
 
-from ..models import Backend, BackendKindChoices, Flow, Run, RunKindChoices, RunStatusChoices
+from ..models import Backend, Flow, Run, RunKindChoices, RunStatusChoices
 
 API = "plugins-api:netbox_alembic-api"
 
 
 class BackendSerializer(NetBoxModelSerializer):
     url = serializers.HyperlinkedIdentityField(view_name=f"{API}:backend-detail")
-    kind = ChoiceField(choices=BackendKindChoices)
 
     class Meta:
         model = Backend
@@ -23,7 +22,6 @@ class BackendSerializer(NetBoxModelSerializer):
             "kind",
             "config",
             "credential",
-            "external_adapter",
             "description",
             "comments",
             "tags",

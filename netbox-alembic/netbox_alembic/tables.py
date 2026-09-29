@@ -7,7 +7,7 @@ from .models import Backend, Flow, Run
 
 class BackendTable(NetBoxTable):
     name = tables.Column(linkify=True)
-    kind = columns.ChoiceFieldColumn()
+    kind = tables.Column(verbose_name=_("Kind"), accessor="kind_label", order_by=("kind",))
     tags = columns.TagColumn(url_name="plugins:netbox_alembic:backend_list")
 
     class Meta(NetBoxTable.Meta):
