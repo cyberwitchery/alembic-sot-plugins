@@ -122,9 +122,17 @@ jobs:
       - run: python -m pip install -r docs/requirements.txt
       - run: mkdocs build --strict
 
+  sbom:
+    name: sbom
+    uses: cyberwitchery/.github/.github/workflows/sbom.yml@d8cdf87f9048c369e1ab49281da13e7e72a782fb # main
+    with:
+      mode: report
+      ecosystem: python
+      packages: alembic-runner netbox-alembic nautobot-alembic
+
   success:
     name: success
-    needs: [lint, runner, netbox, nautobot, build, docs]
+    needs: [lint, runner, netbox, nautobot, build, docs, sbom]
     runs-on: ubuntu-latest
     if: always()
     steps:

@@ -9,13 +9,17 @@ on:
     tags:
       - "v*"
 
+permissions: {}
+
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
@@ -38,34 +42,37 @@ jobs:
           if bad:
               raise SystemExit(f"tag {want} does not match: " + "; ".join(bad))
           EOF
-      - name: build
-        run: |
-          pip install build
-          for package in alembic-runner netbox-alembic nautobot-alembic; do
-            python -m build -o "dist/$package" "$package"
-          done
-      - name: generate sbom
-        env:
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          pip install cyclonedx-bom
-          python -m pip freeze --all | cyclonedx-py requirements - -o "/tmp/sbom-${REF_NAME}.cdx.json"
-      - name: upload sbom
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+
+  # builds, gates and attests the packages the publish jobs upload.
+  sbom:
+    needs: check
+    uses: cyberwitchery/.github/.github/workflows/sbom.yml@d8cdf87f9048c369e1ab49281da13e7e72a782fb # main
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      mode: release
+      ecosystem: python
+      packages: alembic-runner netbox-alembic nautobot-alembic
+
+  release:
+    needs: sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: sbom-${{ github.ref_name }}
-          path: /tmp/sbom-${{ github.ref_name }}.cdx.json
+          name: release-evidence
+          path: evidence
       - name: attach sbom to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: /tmp/sbom-${{ github.ref_name }}.cdx.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dist
-          path: dist/
+          files: evidence/release/*.cdx.json
 
   publish-runner:
-    needs: build
+    needs: sbom
     runs-on: ubuntu-latest
     environment: pypi-alembic-runner
     permissions:
@@ -73,11 +80,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: dist
-          path: dist/
+          name: release-evidence
+          path: evidence
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          packages-dir: dist/alembic-runner/
+          packages-dir: evidence/packages/alembic-runner/
 
   publish-netbox:
     needs: publish-runner
@@ -88,11 +95,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: dist
-          path: dist/
+          name: release-evidence
+          path: evidence
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          packages-dir: dist/netbox-alembic/
+          packages-dir: evidence/packages/netbox-alembic/
 
   publish-nautobot:
     needs: publish-runner
@@ -103,8 +110,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: dist
-          path: dist/
+          name: release-evidence
+          path: evidence
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          packages-dir: dist/nautobot-alembic/
+          packages-dir: evidence/packages/nautobot-alembic/
