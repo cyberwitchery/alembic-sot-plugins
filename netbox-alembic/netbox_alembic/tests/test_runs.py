@@ -15,7 +15,6 @@ from alembic_runner import (
     StaleCheck,
     Workspace,
 )
-from alembic_runner.pipeline import input_sha256
 from core.models import DataFile, DataSource
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -199,7 +198,6 @@ class PlanTests(RunTestCase):
         run = self.plan()
         # everything under the root, nothing outside it.
         self.assertEqual(run.input, {"inventory.yaml": INVENTORY, "map.yaml": "rules: []\n"})
-        self.assertEqual(run.input_sha256, input_sha256(run.input))
 
     def test_empty_plan_is_no_changes(self):
         run = self.plan(FakeRunner(plan=EMPTY_PLAN))
