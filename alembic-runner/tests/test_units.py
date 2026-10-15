@@ -1,3 +1,4 @@
+import hashlib
 import json
 import stat
 import tempfile
@@ -97,7 +98,7 @@ class PlanTests(unittest.TestCase):
 
     def test_sha256_is_of_the_bytes(self):
         raw = plan_bytes([CREATE])
-        self.assertEqual(len(Plan.from_bytes(raw).sha256), 64)
+        self.assertEqual(Plan.from_bytes(raw).sha256, hashlib.sha256(raw).hexdigest())
         self.assertNotEqual(Plan.from_bytes(raw).sha256, Plan.from_bytes(raw + b" ").sha256)
 
     def test_rejects_non_plans(self):
@@ -172,7 +173,14 @@ class BackendTests(unittest.TestCase):
     def test_state_env(self):
         self.assertEqual(StateStore().env("flow-1"), {"ALEMBIC_STATE_BACKEND": "local"})
         pg = StateStore.from_settings({"backend": "postgres", "postgres_url": "postgres://x"})
-        self.assertEqual(pg.env("flow-1")["ALEMBIC_STATE_KEY"], "flow-1")
+        self.assertEqual(
+            pg.env("flow-1"),
+            {
+                "ALEMBIC_STATE_BACKEND": "postgres",
+                "ALEMBIC_STATE_POSTGRES_URL": "postgres://x",
+                "ALEMBIC_STATE_KEY": "flow-1",
+            },
+        )
         with self.assertRaises(BackendError):
             StateStore("postgres")
 

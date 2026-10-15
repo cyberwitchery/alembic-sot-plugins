@@ -100,6 +100,7 @@ class PageTests(ViewTestCase):
                 response = self.client_for(self.viewer).get(
                     reverse(f"plugins:nautobot_alembic:{name}")
                 )
+                self.assertEqual(response.status_code, 200)
                 errors = [str(m) for m in get_messages(response.wsgi_request)]
                 self.assertEqual(errors, [])
 

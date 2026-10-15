@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from alembic_runner import Backend, Flow, Plan, Runner, RunnerError
+from alembic_runner.runner import PASSTHROUGH_ENV
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -56,8 +57,11 @@ class FakeBinaryTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"SECRET_KEY": "django", "DB_PASSWORD": "pw"}):
             self.runner.plan(self.flow, "9", self.inventory)
         env = self.record()["env"]
-        self.assertNotIn("SECRET_KEY", env)
-        self.assertNotIn("DB_PASSWORD", env)
+        # the interpreter running the fake binary adds its own locale and, on
+        # macOS, CoreFoundation variables; anything else must come from the runner.
+        platform = {"LC_CTYPE", "__CF_USER_TEXT_ENCODING"}
+        allowed = {"HOME", "ALEMBIC_STATE_BACKEND", "NETBOX_TOKEN", *PASSTHROUGH_ENV, *platform}
+        self.assertLessEqual(set(env), allowed)
         self.assertEqual(env["NETBOX_TOKEN"], "secret")
         self.assertEqual(env["ALEMBIC_STATE_BACKEND"], "local")
         self.assertEqual(env["HOME"], str(self.tmp / "work" / "flows" / "1"))

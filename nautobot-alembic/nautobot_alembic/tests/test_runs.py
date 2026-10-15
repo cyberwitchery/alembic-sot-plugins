@@ -256,8 +256,14 @@ class WorkflowTests(RunTestCase):
     def test_the_app_approve_defers_to_a_workflow(self):
         run = self.plan()
         with mock.patch.object(actions, "workflow_for", return_value=object()):
-            with self.assertRaises(ValidationError):
+            with self.assertRaises(ValidationError) as raised:
                 self.approve(run)
+        self.assertEqual(
+            raised.exception.messages, ["This run is approved through its approval workflow."]
+        )
+        run.refresh_from_db()
+        self.assertEqual(run.status, "awaiting_approval")
+        self.assertIsNone(run.decided_by)
 
     def test_pending_workflows_are_canceled_by_a_new_plan(self):
         run = self.plan()
