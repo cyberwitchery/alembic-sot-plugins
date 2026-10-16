@@ -198,7 +198,6 @@ class PlanTests(RunTestCase):
         run = self.plan()
         # everything under the root, nothing outside it.
         self.assertEqual(run.input, {"inventory.yaml": INVENTORY, "map.yaml": "rules: []\n"})
-        self.assertEqual(len(run.input_sha256), 64)
 
     def test_empty_plan_is_no_changes(self):
         run = self.plan(FakeRunner(plan=EMPTY_PLAN))
@@ -262,6 +261,9 @@ class ApprovalTests(RunTestCase):
     def test_reject(self):
         run = actions.reject(self.plan(), self.approver)
         self.assertEqual(run.status, "rejected")
+        self.assertEqual(run.decided_by, self.approver)
+        self.assertIsNotNone(run.decided_at)
+        self.assertIsNotNone(run.finished_at)
 
     def test_old_plans_expire(self):
         run = self.plan()

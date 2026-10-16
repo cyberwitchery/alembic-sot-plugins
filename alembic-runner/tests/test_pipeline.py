@@ -54,7 +54,7 @@ rules:
     emit:
       type: dcim.site
       key: { slug: "${key.slug}" }
-      attrs: { name: "${attrs.slug|upper}", slug: "${key.slug}" }
+      attrs: { name: "m-${key.slug}", slug: "${key.slug}" }
 """
 
 
@@ -194,10 +194,13 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.plan("2").status, S.NO_CHANGES)
 
     def test_a_map_spec_is_relative_to_the_root(self):
-        files = {"schemas/inv.yaml": INVENTORY, "maps/upper.yaml": MAP}
-        planned = self.plan("1", files=files, entry="schemas/inv.yaml", map_spec="maps/upper.yaml")
+        files = {"schemas/inv.yaml": INVENTORY, "maps/sites.yaml": MAP}
+        planned = self.plan("1", files=files, entry="schemas/inv.yaml", map_spec="maps/sites.yaml")
         self.assertEqual(planned.status, S.AWAITING_APPROVAL, planned.fields.get("error"))
-        self.assertIn('"name": "FRA1"', planned.fields["input"][DERIVED_ENTRY])
+        derived = json.loads(planned.fields["input"][DERIVED_ENTRY])
+        self.assertEqual(
+            [o["attrs"] for o in derived["objects"]], [{"name": "m-fra1", "slug": "fra1"}]
+        )
 
 
 if __name__ == "__main__":
