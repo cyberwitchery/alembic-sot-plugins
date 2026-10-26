@@ -1,6 +1,6 @@
 from nautobot.apps import NautobotAppConfig, nautobot_database_ready
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 class AlembicConfig(NautobotAppConfig):
