@@ -4,7 +4,7 @@ x-nautobot: &nautobot
     context: nautobot
     args:
       NAUTOBOT_IMAGE: ${NAUTOBOT_IMAGE:-ghcr.io/nautobot/nautobot:3.2.5}
-      ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.10.0}
+      ALEMBIC_VERSION: ${ALEMBIC_VERSION:-v0.12.0}
   depends_on:
     postgres:
       condition: service_healthy

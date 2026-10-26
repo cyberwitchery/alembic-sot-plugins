@@ -112,9 +112,17 @@ class FakeBinaryTests(unittest.TestCase):
         with self.assertRaises(RunnerError):
             self.runner.apply(self.flow, "9", plan, "0" * 64)
 
+    def test_apply_leaves_the_stale_check_to_the_runner(self):
+        # the runner checks against the approved plan with the flow's flags first
+        plan = Plan.from_bytes(b'{"ops": []}')
+        self.runner.apply(self.flow, "9", plan, plan.sha256)
+        argv = self.record()["argv"]
+        self.assertEqual(argv[:3], ["apply", "-p", argv[2]])
+        self.assertIn("--no-stale-check", argv)
+
     def test_version_range(self):
-        self.assertEqual(self.runner.check_version(), "0.10.0")
-        for text in ("alembic 0.9.0", "alembic 0.11.0", "something else"):
+        self.assertEqual(self.runner.check_version(), "0.12.0")
+        for text in ("alembic 0.11.0", "alembic 0.13.0", "something else"):
             self.fake.with_suffix(".version").write_text(text)
             with self.assertRaises(RunnerError, msg=text):
                 self.runner.check_version()
