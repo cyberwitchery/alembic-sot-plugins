@@ -47,7 +47,7 @@ class FakeRunner:
         self.root = Path(tempfile.mkdtemp())
 
     def check_version(self):
-        return "0.10.0"
+        return "0.12.0"
 
     def workspace(self, flow):
         return Workspace(self.root, flow.id)

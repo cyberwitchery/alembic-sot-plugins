@@ -1,5 +1,11 @@
 # changelog
 
+## [unreleased]
+
+- runs need alembic 0.12: `alembic-runner` refuses anything outside `>= 0.12, < 0.13`, and a drift run reads `plan --report`'s exit `2` as drift found, not as a failure
+- apply passes `--no-stale-check`: the runner's own check against the approved plan, with the flow's flags, stays the one that decides
+- upgrading from alembic 0.10: a plugin for an external adapter with no `instance:` gets a new identity, and with it fresh state, so pin `instance:` first; finish any interrupted apply before upgrading, since alembic 0.12 keeps postgres-state journals in the database and does not read the old ones
+
 ## [0.2.0] - 2026-09-29
 
 - alembic plugins are backend kinds: every plugin in `plugins_dir` is offered in the form next to netbox and nautobot, and a run uses it as `alembic --backend <name>`. this replaces the `external` kind and the `external_adapters` setting

@@ -15,7 +15,7 @@ from .plan import ApplyReport, DocumentError, DriftReport, Plan, sha256
 from .workspace import Workspace
 
 # pre-1.0, a minor release may break the cli, so the range stops at the next minor.
-SUPPORTED = ((0, 10, 0), (0, 11, 0))
+SUPPORTED = ((0, 12, 0), (0, 13, 0))
 
 # what a run inherits from the worker. everything else is built per run, so the
 # host's own secrets (django SECRET_KEY, database passwords) never reach alembic.
@@ -35,6 +35,9 @@ PASSTHROUGH_ENV = (
 )
 
 OUTPUT_LIMIT = 1 << 20
+
+# what `plan --report` exits with when the target has drifted.
+DRIFT_EXIT = 2
 
 _VERSION = re.compile(r"^alembic (\d+)\.(\d+)\.(\d+)\b")
 
@@ -232,7 +235,9 @@ class Runner:
         if sha256(path.read_bytes()) != expected_sha256:
             raise RunnerError("the plan written for apply does not match the approved hash")
         out = ws.run_dir(run) / "apply.json"
-        args = ["apply", "-p", str(path), "-o", str(out), *config]
+        # the stale check before apply is ours: it compares against the approved
+        # plan with the flow's own flags, which alembic's check cannot see.
+        args = ["apply", "-p", str(path), "-o", str(out), "--no-stale-check", *config]
         if flow.allow_delete:
             args.append("--allow-delete")
         completed = self._run(flow, args)
@@ -250,7 +255,8 @@ class Runner:
         args = ["plan", "-f", str(inventory), "--report", "-o", str(out)]
         args += config
         completed = self._run(flow, args)
-        if not completed.ok:
+        # `--report` exits 2 when it finds drift: that is a result, not a failure
+        if completed.exit_code not in (0, DRIFT_EXIT):
             return DriftOutcome(completed, error=completed.describe())
         try:
             return DriftOutcome(completed, report=DriftReport.from_bytes(out.read_bytes()))
