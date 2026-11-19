@@ -229,6 +229,17 @@ class PlanTests(RunTestCase):
         self.assertEqual(first.status, "superseded")
         self.assertEqual(second.status, "awaiting_approval")
 
+    def test_editing_the_flow_drops_a_requested_plan(self):
+        run = self.request()
+        self.flow.comments = "edited"
+        self.flow.save()
+        runner = FakeRunner()
+        with mock.patch("netbox_alembic.jobs.runner", return_value=runner):
+            PlanRunJob(job_for(run)).run()
+        run.refresh_from_db()
+        self.assertEqual(run.status, "superseded")
+        self.assertEqual(runner.calls, [])
+
 
 class ApprovalTests(RunTestCase):
     def test_requester_cannot_approve(self):
@@ -318,6 +329,15 @@ class ApplyTests(RunTestCase):
         run = self.apply(run, runner)
         self.assertEqual(run.status, "applied")
         self.assertEqual(runner.calls, ["apply"])
+
+    def test_editing_the_flow_takes_away_the_approval(self):
+        run = self.approve(self.plan())
+        self.flow.comments = "edited"
+        self.flow.save()
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "superseded")
+        self.assertEqual(runner.calls, [])
 
     def test_new_plan_takes_away_the_resume(self):
         failed = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))

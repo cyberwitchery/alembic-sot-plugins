@@ -211,6 +211,15 @@ class FallbackApprovalTests(RunTestCase):
         self.assertEqual(run.status, "failed")
         self.assertEqual(runner.calls, [])
 
+    def test_editing_the_flow_takes_away_the_approval(self):
+        run = self.approve(self.plan())
+        self.flow.description = "edited"
+        self.flow.validated_save()
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "superseded")
+        self.assertEqual(runner.calls, [])
+
     def test_failed_apply_resumes_without_stale_check(self):
         run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
         self.assertEqual(run.status, "apply_failed")
@@ -267,8 +276,16 @@ class WorkflowTests(RunTestCase):
 
     def test_pending_workflows_are_canceled_by_a_new_plan(self):
         run = self.plan()
-        with mock.patch.object(actions, "_cancel_workflows") as cancel:
+        with mock.patch.object(Run, "cancel_workflows") as cancel:
             self.plan()
+        cancel.assert_called_once()
+        self.assertEqual(cancel.call_args.args[0].pk, run.pk)
+
+    def test_pending_workflows_are_canceled_by_a_flow_edit(self):
+        run = self.plan()
+        self.flow.description = "edited"
+        with mock.patch.object(Run, "cancel_workflows") as cancel:
+            self.flow.validated_save()
         cancel.assert_called_once()
         self.assertEqual(cancel.call_args.args[0].pk, run.pk)
 

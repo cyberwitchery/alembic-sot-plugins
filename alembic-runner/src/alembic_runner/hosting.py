@@ -25,6 +25,9 @@ S = RunStatus
 
 # a new plan of a flow takes these runs' place.
 SUPERSEDABLE = (S.AWAITING_APPROVAL.value, S.APPLY_FAILED.value)
+# an edit to a flow takes the place of every run not applying yet: each was
+# planned, or approved, for the flow as it was.
+EDIT_SUPERSEDES = (S.PENDING.value, S.PLANNING.value, S.APPROVED.value, *SUPERSEDABLE)
 
 
 class ActionError(ValidationError):
@@ -61,13 +64,19 @@ def expired(run, ttl_hours: int | None) -> bool:
     )
 
 
+def supersede_runs(model, flow, statuses, retire: Callable = lambda run: None) -> None:
+    """move the flow's runs in `statuses` to superseded, each passed to `retire`
+    first. call inside a transaction."""
+    for run in model.objects.select_for_update().filter(flow=flow, status__in=statuses):
+        retire(run)
+        move(run, S.SUPERSEDED, finished_at=timezone.now())
+
+
 def create_run(model, flow, user, kind: str, supersede: bool, retire: Callable = lambda run: None):
     """create a pending run of `flow`. a plan (`supersede`) takes the place of the
-    flow's waiting runs, each passed to `retire` first. call inside a transaction."""
+    flow's waiting runs. call inside a transaction."""
     if supersede:
-        for run in model.objects.select_for_update().filter(flow=flow, status__in=SUPERSEDABLE):
-            retire(run)
-            move(run, S.SUPERSEDED, finished_at=timezone.now())
+        supersede_runs(model, flow, SUPERSEDABLE, retire)
     try:
         with transaction.atomic():
             return model.objects.create(flow=flow, kind=kind, requested_by=user)

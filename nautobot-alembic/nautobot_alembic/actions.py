@@ -50,7 +50,7 @@ def request_run(flow, user, kind=RunKindChoices.PLAN):
             user,
             kind,
             supersede=kind == RunKindChoices.PLAN,
-            retire=_cancel_workflows,
+            retire=Run.cancel_workflows,
         )
         transaction.on_commit(lambda: enqueue("PlanRun", run, user))
     return run
@@ -63,14 +63,6 @@ def workflow_for(run):
     return run.associated_approval_workflows.filter(
         current_state=ApprovalWorkflowStateChoices.PENDING
     ).first()
-
-
-def _cancel_workflows(run):
-    from nautobot.extras.choices import ApprovalWorkflowStateChoices
-
-    run.associated_approval_workflows.filter(
-        current_state=ApprovalWorkflowStateChoices.PENDING
-    ).update(current_state=ApprovalWorkflowStateChoices.CANCELED)
 
 
 def _approve(run, user):

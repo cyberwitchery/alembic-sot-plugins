@@ -1,7 +1,7 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus
+from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus, hosting
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -191,6 +191,13 @@ class Flow(NetBoxModel):
             setattr(self, field, value)
         if not self.inventory:
             raise ValidationError({"inventory": _("Name the inventory file.")})
+
+    def save(self, *args, **kwargs):
+        edited = not self._state.adding
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if edited:
+                hosting.supersede_runs(Run, self, hosting.EDIT_SUPERSEDES)
 
     @property
     def root_prefix(self):
