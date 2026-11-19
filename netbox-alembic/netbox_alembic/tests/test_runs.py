@@ -36,8 +36,8 @@ PLUGIN_SETTINGS = {
         **AlembicConfig.default_settings,
         "work_root": "/tmp/netbox-alembic-tests",
         "credentials": {
-            "netbox": {"token": "TEST_NETBOX_TOKEN"},
-            "other": {"token": "TEST_OTHER"},
+            "netbox": {"token": "TEST_NETBOX_TOKEN", "url": "http://netbox:8080"},
+            "other": {"token": "TEST_OTHER", "url": "http://nautobot:8080"},
             "lab": {"env": {"LAB_TOKEN": "TEST_OTHER"}},
         },
         "plugins_dir": PLUGINS_DIR,
@@ -217,6 +217,14 @@ class PlanTests(RunTestCase):
         self.assertEqual(run.status, "failed")
         self.assertIn("TEST_NETBOX_TOKEN", run.error)
 
+    def test_redirected_target_fails_before_alembic_runs(self):
+        Backend.objects.filter(pk=self.target.pk).update(config={"url": "http://elsewhere:8080"})
+        runner = FakeRunner()
+        run = self.plan(runner)
+        self.assertEqual(run.status, "failed")
+        self.assertIn("http://netbox:8080", run.error)
+        self.assertEqual(runner.calls, [])
+
     def test_one_run_in_progress_per_flow(self):
         self.request()
         with self.assertRaises(ValidationError):
@@ -389,7 +397,9 @@ class BackendValidationTests(TestCase):
         Backend(name="b", **fields).full_clean()
 
     def test_valid(self):
-        self.check(kind="nautobot", config={"url": "https://n"}, credential="other")
+        self.check(kind="nautobot", config={"url": "http://nautobot:8080"}, credential="other")
+        self.check(kind="nautobot", credential="other")
+        self.check(kind="netbox", config={"url": "https://anywhere"})
         self.check(kind="store")
         self.check(kind="lab", credential="lab")
 
@@ -401,10 +411,43 @@ class BackendValidationTests(TestCase):
             {"kind": "nope"},
             {"kind": "external"},
             {"kind": "netbox", "credential": "nope"},
+            {"kind": "netbox", "config": {"url": "http://elsewhere"}, "credential": "netbox"},
         ]
         for fields in cases:
             with self.subTest(fields=fields), self.assertRaises(ValidationError):
                 self.check(**fields)
+
+
+@override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)
+@mock.patch.dict("os.environ", {"TEST_NETBOX_TOKEN": "t", "TEST_OTHER": "o"})
+class CredentialUrlTests(TestCase):
+    """a credential goes only to the url plugin settings name for it."""
+
+    def test_the_credential_names_the_url(self):
+        backend = settings.runner_backend(Backend(name="b", kind="netbox", credential="netbox"))
+        self.assertEqual(backend.config, {"url": "http://netbox:8080"})
+        self.assertEqual(backend.env, {"NETBOX_TOKEN": "t"})
+
+    def test_a_stored_url_elsewhere_gets_no_credential(self):
+        backend = Backend(
+            name="b", kind="netbox", config={"url": "http://elsewhere"}, credential="netbox"
+        )
+        with self.assertRaises(settings.SettingsError):
+            settings.runner_backend(backend)
+
+    def test_another_credential_goes_to_its_own_url(self):
+        backend = settings.runner_backend(
+            Backend(name="b", kind="nautobot", config={"instance": "lab"}, credential="netbox")
+        )
+        self.assertEqual(backend.config, {"instance": "lab", "url": "http://netbox:8080"})
+
+    def test_a_credential_without_a_url_is_refused(self):
+        unpinned = {"netbox_alembic": {**PLUGIN_SETTINGS["netbox_alembic"]}}
+        unpinned["netbox_alembic"]["credentials"] = {"netbox": {"token": "TEST_NETBOX_TOKEN"}}
+        with override_settings(PLUGINS_CONFIG=unpinned), self.assertRaises(settings.SettingsError):
+            settings.runner_backend(
+                Backend(name="b", kind="netbox", config={"url": "http://x"}, credential="netbox")
+            )
 
 
 @override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)

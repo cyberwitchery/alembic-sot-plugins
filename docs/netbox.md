@@ -33,10 +33,11 @@ PLUGINS_CONFIG = {
         "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
         # credentials by name: each value names worker environment variables.
         # "token" feeds a built-in adapter's token variable (NETBOX_TOKEN, ...);
-        # "env" sets the variables a plugin's adapter reads.
+        # "env" sets the variables a plugin's adapter reads. "url" is where a
+        # built-in backend using the credential connects.
         "credentials": {
-            "netbox": {"token": "ALEMBIC_NETBOX_TOKEN"},
-            "lab-nautobot": {"token": "LAB_NAUTOBOT_TOKEN"},
+            "netbox": {"token": "ALEMBIC_NETBOX_TOKEN", "url": "https://netbox.example.com"},
+            "lab-nautobot": {"token": "LAB_NAUTOBOT_TOKEN", "url": "https://nautobot.lab.example.com"},
         },
         # alembic's plugins directory. each plugin in it is a backend kind.
         "plugins_dir": "/etc/alembic/plugins",
@@ -48,7 +49,10 @@ PLUGINS_CONFIG = {
 ```
 
 secrets never enter the database. a backend stores the name of a credential,
-and the worker reads the value from its environment at run time. alembic runs
+and the worker reads the value from its environment at run time. a credential
+for a built-in backend names its `url` in settings, and a backend using it
+connects there: its own `url` can be empty or the same, so whoever can edit a
+backend cannot send a credential to another host. alembic runs
 with an environment built for the run, so the worker's own secrets (django
 `SECRET_KEY`, database passwords) do not reach it.
 

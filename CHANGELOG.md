@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- netbox: a credential names the `url` it is for, and a built-in backend using it connects there. a backend whose stored `url` differs is refused, so editing a backend can no longer send a credential to another host. add `url` to every credential a built-in backend uses before upgrading
+
 ## [0.3.0] - 2026-10-26
 
 - runs need alembic 0.12: `alembic-runner` refuses anything outside `>= 0.12, < 0.13`, and a drift run reads `plan --report`'s exit `2` as drift found, not as a failure

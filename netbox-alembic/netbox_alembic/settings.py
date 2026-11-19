@@ -51,11 +51,15 @@ def _worker_env(name):
         raise SettingsError(f"worker environment variable {name} is not set") from None
 
 
-def _credential_env(kind, name):
+def _credential(name):
     credentials = setting("credentials")
     if name not in credentials:
         raise SettingsError(f"no credential {name!r} in plugin settings")
-    entry = credentials[name]
+    return credentials[name]
+
+
+def _credential_env(kind, name):
+    entry = _credential(name)
     env = {}
     if "token" in entry:
         if kind not in BUILTIN_KINDS:
@@ -68,13 +72,34 @@ def _credential_env(kind, name):
     return env
 
 
+def connection_config(kind, config, credential):
+    """the config a built-in backend connects with. a credential goes only to the
+    url plugin settings name for it: a stored url may repeat that url, never
+    replace it, so whoever can edit a backend cannot send a credential elsewhere."""
+    config = dict(config)
+    if not credential:
+        return config
+    url = _credential(credential).get("url")
+    if not url:
+        raise SettingsError(f"credential {credential!r} names no url in plugin settings")
+    if config.setdefault("url", url) != url:
+        raise SettingsError(
+            f"credential {credential!r} is for {url}, not {config['url']}; "
+            "leave the url empty or set it to that"
+        )
+    return config
+
+
 def runner_backend(backend):
     """the alembic view of a stored backend, with credentials from the worker
     environment. a plugin kind runs as that alembic plugin."""
-    env = _credential_env(backend.kind, backend.credential) if backend.credential else {}
-    if backend.kind in BUILTIN_KINDS:
-        return RunnerBackend(backend.kind, dict(backend.config), env=env)
-    return RunnerBackend(backend.kind, env=env, plugin=True)
+    name = backend.credential
+    if backend.kind not in BUILTIN_KINDS:
+        env = _credential_env(backend.kind, name) if name else {}
+        return RunnerBackend(backend.kind, env=env, plugin=True)
+    config = connection_config(backend.kind, backend.config, name)
+    env = _credential_env(backend.kind, name) if name else {}
+    return RunnerBackend(backend.kind, config, env=env)
 
 
 def runner_flow(flow):

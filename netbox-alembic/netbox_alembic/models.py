@@ -9,7 +9,7 @@ from netbox.models import ChangeLoggedModel, NetBoxModel
 from netbox.models.features import JobsMixin
 from utilities.choices import ChoiceSet
 
-from .settings import kind_choices, setting
+from .settings import BUILTIN_KINDS, SettingsError, connection_config, kind_choices, setting
 
 
 class RunKindChoices(ChoiceSet):
@@ -107,6 +107,11 @@ class Backend(NetBoxModel):
             )
         if self.credential and self.credential not in setting("credentials"):
             raise ValidationError({"credential": _("No credential by that name in settings.")})
+        if self.kind in BUILTIN_KINDS:
+            try:
+                connection_config(self.kind, self.config, self.credential)
+            except SettingsError as e:
+                raise ValidationError({"config": str(e)}) from None
 
 
 class Flow(NetBoxModel):
