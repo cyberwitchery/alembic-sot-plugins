@@ -37,7 +37,10 @@ PLUGINS_CONFIG = {
         # built-in backend using the credential connects.
         "credentials": {
             "netbox": {"token": "ALEMBIC_NETBOX_TOKEN", "url": "https://netbox.example.com"},
-            "lab-nautobot": {"token": "LAB_NAUTOBOT_TOKEN", "url": "https://nautobot.lab.example.com"},
+            "lab-nautobot": {
+                "token": "LAB_NAUTOBOT_TOKEN",
+                "url": "https://nautobot.lab.example.com",
+            },
         },
         # alembic's plugins directory. each plugin in it is a backend kind.
         "plugins_dir": "/etc/alembic/plugins",
