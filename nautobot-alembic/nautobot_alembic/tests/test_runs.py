@@ -211,6 +211,25 @@ class FallbackApprovalTests(RunTestCase):
         self.assertEqual(run.status, "failed")
         self.assertEqual(runner.calls, [])
 
+    def test_another_target_after_approval_writes_nothing(self):
+        run = self.approve(self.plan())
+        prod = Backend.objects.create(
+            name="prod", kind="nautobot", config={"url": "http://prod:8080"}
+        )
+        Flow.objects.filter(pk=self.flow.pk).update(target=prod)
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "stale")
+        self.assertEqual(runner.calls, [])
+
+    def test_a_repointed_target_after_approval_writes_nothing(self):
+        run = self.approve(self.plan())
+        Backend.objects.filter(pk=self.target.pk).update(config={"url": "http://prod:8080"})
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "stale")
+        self.assertEqual(runner.calls, [])
+
     def test_failed_apply_resumes_without_stale_check(self):
         run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
         self.assertEqual(run.status, "apply_failed")

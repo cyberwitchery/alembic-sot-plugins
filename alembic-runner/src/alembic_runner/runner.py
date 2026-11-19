@@ -9,6 +9,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .backend import Backend, StateStore
 from .plan import ApplyReport, DocumentError, DriftReport, Plan, sha256
@@ -87,6 +88,25 @@ class Flow:
     @property
     def key(self) -> str:
         return self.state_key or f"flow-{self.id}"
+
+    def target_identity(self) -> dict[str, Any]:
+        """what decides where and how an apply writes: the target as alembic sees
+        it, with its credentials, the state it maps through, and the flags. the
+        source only shapes a plan, so it is not part of it. holds secrets."""
+        target = self.target
+        return {
+            "flow": self.id,
+            "target": {
+                "kind": target.kind,
+                "config": target.config,
+                "env": target.env,
+                "command": target.command,
+                "plugin": target.plugin,
+            },
+            "state_key": self.key,
+            "allow_delete": self.allow_delete,
+            "no_adopt": self.no_adopt,
+        }
 
 
 @dataclass(frozen=True)

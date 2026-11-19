@@ -26,6 +26,10 @@ plan (background job: sync the data source, snapshot the files, alembic plan)
   plan against the hash recorded at approval.
 - if the target changed between plan and apply, the run ends `stale` and
   nothing is written. plan again.
+- the approval covers the plan for the target it was made for. if the flow
+  now points elsewhere (another target, a changed url or credential, another
+  state key or flags), the apply, a resumed one too, ends `stale` without
+  running alembic.
 - a failed apply can be resumed; alembic's journal skips what already landed.
 - a newer plan supersedes the flow's waiting plan and takes away a pending
   resume. a flow has one run in progress at a time, and a target one apply.

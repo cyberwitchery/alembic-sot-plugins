@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- an approval binds the target: a run records the flow's target (backend, url, credential, state key, flags) at plan time, and an apply or resume against anything else ends `stale` without writing. runs planned before upgrading end `stale` at apply; plan them again
+
 ## [0.3.0] - 2026-10-26
 
 - runs need alembic 0.12: `alembic-runner` refuses anything outside `>= 0.12, < 0.13`, and a drift run reads `plan --report`'s exit `2` as drift found, not as a failure

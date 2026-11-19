@@ -249,6 +249,11 @@ class Run(JobsMixin, ChangeLoggedModel):
     approved_sha256 = models.CharField(
         verbose_name=_("approved SHA-256"), max_length=64, blank=True
     )
+    # where the plan applies, as hosting.target_digest has it at plan time. an
+    # apply to any other target ends stale.
+    target_digest = models.CharField(
+        verbose_name=_("target digest"), max_length=64, blank=True, editable=False
+    )
     summary = models.JSONField(verbose_name=_("summary"), default=dict, blank=True)
     drift_report = models.JSONField(verbose_name=_("drift report"), null=True, blank=True)
     apply_report = models.JSONField(verbose_name=_("apply report"), null=True, blank=True)

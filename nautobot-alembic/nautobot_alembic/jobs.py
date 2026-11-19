@@ -63,9 +63,10 @@ class PlanRun(RunJob):
         r = runner()
         version = r.check_version()
         Run.objects.filter(pk=run.pk).update(alembic_version=version)
+        flow = runner_flow(run.flow)
         outcome = plan_run(
             r,
-            runner_flow(run.flow),
+            flow,
             str(run.pk),
             flow_files(run.flow, self.logger),
             run.flow.inventory,
@@ -74,7 +75,9 @@ class PlanRun(RunJob):
             run.kind == RunKindChoices.DRIFT,
             self.logger,
         )
-        hosting.settle(run, outcome, planned_at=timezone.now())
+        hosting.settle(
+            run, outcome, planned_at=timezone.now(), target_digest=hosting.target_digest(flow)
+        )
         if run.status == S.AWAITING_APPROVAL.value:
             # a matching approval workflow takes the decision; without one the
             # app's own approve action does.
@@ -92,14 +95,18 @@ class ApplyRun(RunJob):
         plan, resuming = hosting.start_apply(run)
         r = runner()
         r.check_version()
+        # the flow as this apply resolves it is the one checked and the one used.
+        flow = runner_flow(run.flow)
         outcome = apply_run(
             r,
-            runner_flow(run.flow),
+            flow,
             str(run.pk),
             run.input,
             run.input_entry or run.flow.inventory,
             plan,
             run.approved_sha256,
+            run.target_digest,
+            hosting.target_digest(flow),
             resuming,
             run.output,
             self.logger,

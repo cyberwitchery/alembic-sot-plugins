@@ -119,7 +119,7 @@ class PipelineTests(unittest.TestCase):
             LOG,
         )
 
-    def apply(self, run, outcome, resuming=False):
+    def apply(self, run, outcome, resuming=False, target="t"):
         plan = approved_plan(outcome.fields["plan"], outcome.fields["plan_sha256"])
         return apply_run(
             self.runner,
@@ -129,6 +129,8 @@ class PipelineTests(unittest.TestCase):
             outcome.fields["input_entry"],
             plan,
             outcome.fields["plan_sha256"],
+            "t",
+            target,
             resuming,
             outcome.fields["output"],
             LOG,
@@ -163,6 +165,14 @@ class PipelineTests(unittest.TestCase):
         outcome = self.apply("1", planned)
         self.assertEqual(outcome.status, S.STALE)
         self.assertIn("plan again", outcome.fields["error"])
+
+    def test_another_target_is_stale_and_untouched(self):
+        planned = self.plan("1")
+        for resuming in (False, True):
+            outcome = self.apply("1", planned, resuming=resuming, target="other")
+            self.assertEqual(outcome.status, S.STALE)
+            self.assertIn("plan again", outcome.fields["error"])
+        self.assertFalse(self.store.exists())
 
     def test_a_source_is_imported_and_kept(self):
         self.apply("1", self.plan("1"))

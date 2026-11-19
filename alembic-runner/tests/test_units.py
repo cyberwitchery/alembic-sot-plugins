@@ -13,6 +13,7 @@ from alembic_runner import (
     BackendError,
     DocumentError,
     DriftReport,
+    Flow,
     Plan,
     RunStatus,
     StateStore,
@@ -169,6 +170,25 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(token_env("nautobot", "t"), {"NAUTOBOT_TOKEN": "t"})
         with self.assertRaises(BackendError):
             token_env("external", "t")
+
+    def test_target_identity_is_where_an_apply_writes(self):
+        lab = Backend("netbox", {"url": "https://lab"}, env={"NETBOX_TOKEN": "lab"})
+        flow = Flow("1", lab)
+        same = Flow("1", Backend("netbox", {"url": "https://lab"}, env={"NETBOX_TOKEN": "lab"}))
+        self.assertEqual(flow.target_identity(), same.target_identity())
+        # the source only shapes a plan.
+        self.assertEqual(flow.target_identity(), Flow("1", lab, source=lab).target_identity())
+        others = [
+            Flow("1", Backend("netbox", {"url": "https://prod"}, env={"NETBOX_TOKEN": "lab"})),
+            Flow("1", Backend("netbox", {"url": "https://lab"}, env={"NETBOX_TOKEN": "prod"})),
+            Flow("1", Backend("lab", plugin=True)),
+            Flow("2", lab),
+            Flow("1", lab, state_key="prod"),
+            Flow("1", lab, allow_delete=True),
+            Flow("1", lab, no_adopt=True),
+        ]
+        for other in others:
+            self.assertNotEqual(flow.target_identity(), other.target_identity(), other)
 
     def test_state_env(self):
         self.assertEqual(StateStore().env("flow-1"), {"ALEMBIC_STATE_BACKEND": "local"})

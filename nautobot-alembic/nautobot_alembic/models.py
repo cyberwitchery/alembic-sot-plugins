@@ -206,6 +206,9 @@ class Run(ApprovableModelMixin, ChangeLoggedModel, BaseModel):
     plan = models.TextField(blank=True, editable=False)
     plan_sha256 = models.CharField(verbose_name="plan SHA-256", max_length=64, blank=True)
     approved_sha256 = models.CharField(verbose_name="approved SHA-256", max_length=64, blank=True)
+    # where the plan applies, as hosting.target_digest has it at plan time. an
+    # apply to any other target ends stale.
+    target_digest = models.CharField(max_length=64, blank=True, editable=False)
     summary = models.JSONField(default=dict, blank=True)
     drift_report = models.JSONField(null=True, blank=True)
     apply_report = models.JSONField(null=True, blank=True)

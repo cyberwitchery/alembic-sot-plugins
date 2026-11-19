@@ -185,11 +185,21 @@ def apply_run(
     entry: str,
     plan: Plan,
     approved_sha256: str,
+    planned_target: str,
+    target: str,
     resuming: bool,
     before: str,
     logger: logging.Logger,
 ) -> Outcome:
-    """check the approved plan against the target, then apply it."""
+    """check the approved plan against the target, then apply it. `planned_target`
+    and `target` identify the flow's target when it was planned and now; the
+    approval covers the plan for that target only."""
+    if not planned_target or planned_target != target:
+        logger.info("the flow's target is not the one this plan was made for")
+        return Outcome(
+            S.STALE,
+            {"error": "The flow's target changed since this plan was made; plan again."},
+        )
     inventory = runner.workspace(flow).write_input(run, files, entry)
     outputs: list[Completed] = []
     if not resuming:

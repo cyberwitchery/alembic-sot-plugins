@@ -319,6 +319,37 @@ class ApplyTests(RunTestCase):
         self.assertEqual(run.status, "applied")
         self.assertEqual(runner.calls, ["apply"])
 
+    def test_another_target_after_approval_writes_nothing(self):
+        run = self.approve(self.plan())
+        prod = Backend.objects.create(
+            name="prod", kind="netbox", config={"url": "http://prod:8080"}, credential="other"
+        )
+        Flow.objects.filter(pk=self.flow.pk).update(target=prod)
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "stale")
+        self.assertEqual(runner.calls, [])
+
+    def test_a_repointed_target_after_approval_writes_nothing(self):
+        run = self.approve(self.plan())
+        Backend.objects.filter(pk=self.target.pk).update(
+            config={"url": "http://prod:8080"}, credential="other"
+        )
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "stale")
+        self.assertEqual(runner.calls, [])
+
+    def test_a_resume_against_another_target_writes_nothing(self):
+        run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
+        with self.captureOnCommitCallbacks(execute=True):
+            actions.resume(run, self.approver)
+        Backend.objects.filter(pk=self.target.pk).update(config={"url": "http://prod:8080"})
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "stale")
+        self.assertEqual(runner.calls, [])
+
     def test_new_plan_takes_away_the_resume(self):
         failed = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
         self.plan()

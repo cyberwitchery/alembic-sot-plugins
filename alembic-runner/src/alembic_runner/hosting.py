@@ -5,10 +5,11 @@ stays stdlib-only.
 a host's run model carries the fields both apps define: `flow`, `kind`,
 `status`, `requested_by`, `decided_by`, `decided_at`, `planned_at`,
 `apply_started_at`, `finished_at`, `plan`, `plan_sha256`, `approved_sha256`,
-`error`, `output`."""
+`target_digest`, `error`, `output`."""
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable
 from datetime import timedelta
 from typing import Any
@@ -16,9 +17,11 @@ from typing import Any
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 
 from .pipeline import Outcome, RunFailed, approved_plan
 from .plan import Plan
+from .runner import Flow
 from .status import RunStatus, TransitionError, check_transition, failure_status
 
 S = RunStatus
@@ -73,6 +76,14 @@ def create_run(model, flow, user, kind: str, supersede: bool, retire: Callable =
             return model.objects.create(flow=flow, kind=kind, requested_by=user)
     except IntegrityError:
         raise ActionError("This flow already has a run in progress.") from None
+
+
+def target_digest(flow: Flow) -> str:
+    """a digest of where `flow` applies. a run records it at plan time, and an
+    apply refuses a target that no longer matches it. keyed with the host's
+    secret key, since the identity it covers includes credentials."""
+    identity = json.dumps(flow.target_identity(), sort_keys=True)
+    return salted_hmac("alembic_runner.target", identity, algorithm="sha256").hexdigest()
 
 
 def _approve_perm(run) -> str:
