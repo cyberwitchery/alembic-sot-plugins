@@ -26,9 +26,10 @@ S = RunStatus
 
 TRANSITIONS: dict[RunStatus, frozenset[RunStatus]] = {
     S.PENDING: frozenset({S.PLANNING, S.FAILED, S.SUPERSEDED}),
-    S.PLANNING: frozenset({S.NO_CHANGES, S.DRIFTED, S.AWAITING_APPROVAL, S.FAILED}),
+    # an edit to the flow supersedes a run before it applies; see hosting.EDIT_SUPERSEDES.
+    S.PLANNING: frozenset({S.NO_CHANGES, S.DRIFTED, S.AWAITING_APPROVAL, S.FAILED, S.SUPERSEDED}),
     S.AWAITING_APPROVAL: frozenset({S.APPROVED, S.REJECTED, S.SUPERSEDED, S.EXPIRED}),
-    S.APPROVED: frozenset({S.APPLYING, S.FAILED}),
+    S.APPROVED: frozenset({S.APPLYING, S.FAILED, S.SUPERSEDED}),
     S.APPLYING: frozenset({S.APPLIED, S.STALE, S.APPLY_FAILED}),
     # a failed apply leaves a journal behind: re-running the same plan resumes it.
     # a newer plan for the flow takes that option away.

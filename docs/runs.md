@@ -28,7 +28,9 @@ plan (background job: sync the data source, snapshot the files, alembic plan)
   nothing is written. plan again.
 - a failed apply can be resumed; alembic's journal skips what already landed.
 - a newer plan supersedes the flow's waiting plan and takes away a pending
-  resume. a flow has one run in progress at a time, and a target one apply.
+  resume. editing the flow supersedes every run of it that is not applying
+  yet, approved ones included. a flow has one run in progress at a time, and a
+  target one apply.
 
 a drift run (`alembic plan --report`) records how the target differs from the
 inventory and never goes to approval.

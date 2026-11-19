@@ -1,7 +1,7 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus
+from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus, hosting
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.urls import reverse
 from nautobot.apps.choices import ChoiceSet
@@ -13,6 +13,7 @@ from nautobot.apps.models import (
     PrimaryModel,
     extras_features,
 )
+from nautobot.extras.choices import ApprovalWorkflowStateChoices
 
 from .settings import kind_choices
 
@@ -170,6 +171,15 @@ class Flow(PrimaryModel):
         if not self.inventory:
             raise ValidationError({"inventory": "Name the inventory file."})
 
+    def save(self, *args, **kwargs):
+        edited = not self._state.adding
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if edited:
+                hosting.supersede_runs(
+                    Run, self, hosting.EDIT_SUPERSEDES, retire=Run.cancel_workflows
+                )
+
 
 @extras_features("graphql", "webhooks")
 class Run(ApprovableModelMixin, ChangeLoggedModel, BaseModel):
@@ -241,6 +251,11 @@ class Run(ApprovableModelMixin, ChangeLoggedModel, BaseModel):
 
     def on_workflow_initiated(self, approval_workflow):
         pass
+
+    def cancel_workflows(self):
+        self.associated_approval_workflows.filter(
+            current_state=ApprovalWorkflowStateChoices.PENDING
+        ).update(current_state=ApprovalWorkflowStateChoices.CANCELED)
 
     def on_workflow_approved(self, approval_workflow):
         from .actions import workflow_approved

@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- editing a flow supersedes its runs that are not applying yet, so an approval no longer carries over to a changed flow
+
 ## [0.3.0] - 2026-10-26
 
 - runs need alembic 0.12: `alembic-runner` refuses anything outside `>= 0.12, < 0.13`, and a drift run reads `plan --report`'s exit `2` as drift found, not as a failure
