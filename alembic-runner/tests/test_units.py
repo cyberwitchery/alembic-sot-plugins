@@ -24,6 +24,7 @@ from alembic_runner import (
     plugin_names,
     token_env,
 )
+from alembic_runner.review import group_ops
 
 S = RunStatus
 
@@ -224,6 +225,44 @@ class WorkspaceTests(unittest.TestCase):
         path = self.ws.write_backend_config("3", "target", {"backend": "netbox"})
         self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertEqual(json.loads(path.read_text()), {"backend": "netbox"})
+
+
+class ReviewTests(unittest.TestCase):
+    def test_create_shows_the_attributes_it_writes(self):
+        op = {
+            "op": "create",
+            "uid": "u1",
+            "type_name": "dcim.site",
+            "desired": {
+                "uid": "u1",
+                "type": "dcim.site",
+                "key": {"slug": "fra1"},
+                "attrs": {"status": "active", "region": "u2"},
+            },
+        }
+        groups = group_ops(json.dumps({"ops": [op]}), {"u2": "eu"})
+        [(kind, [(type_name, [row])])] = groups
+        self.assertEqual((kind, type_name), ("create", "dcim.site"))
+        self.assertEqual(
+            row["changes"],
+            [
+                {"field": "region", "from": "-", "to": '"eu"'},
+                {"field": "status", "from": "-", "to": '"active"'},
+            ],
+        )
+
+    def test_update_shows_only_its_changes(self):
+        op = {
+            "op": "update",
+            "uid": "u1",
+            "type_name": "dcim.site",
+            "desired": {"key": {"slug": "fra1"}, "attrs": {"status": "active", "name": "x"}},
+            "changes": [{"field": "status", "from": "planned", "to": "active"}],
+        }
+        [(_, [(_, [row])])] = group_ops(json.dumps({"ops": [op]}))
+        self.assertEqual(
+            row["changes"], [{"field": "status", "from": '"planned"', "to": '"active"'}]
+        )
 
 
 if __name__ == "__main__":

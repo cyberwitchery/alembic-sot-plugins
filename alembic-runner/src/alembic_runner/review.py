@@ -92,6 +92,15 @@ def _changes(entry, names=None):
     ]
 
 
+def _op_changes(op, names):
+    """what an op writes. a create carries no changes, it sets every desired
+    attribute from nothing."""
+    if op.get("op") == "create":
+        attrs = (op.get("desired") or {}).get("attrs") or {}
+        op = {"changes": [{"field": k, "from": None, "to": v} for k, v in sorted(attrs.items())]}
+    return _changes(op, names)
+
+
 def drift_rows(report, names=None):
     """drift entries in category order, for review."""
     rows = []
@@ -117,7 +126,7 @@ def group_ops(plan_text, known=None):
     grouped = defaultdict(lambda: defaultdict(list))
     for op in ops:
         key = _readable(op.get("key") or (op.get("desired") or {}).get("key"), names)
-        entry = {"key": _compact(key), "changes": _changes(op, names), "uid": op.get("uid")}
+        entry = {"key": _compact(key), "changes": _op_changes(op, names), "uid": op.get("uid")}
         grouped[op.get("op")][op.get("type_name")].append(entry)
     return [
         (kind, sorted(grouped[kind].items()))
