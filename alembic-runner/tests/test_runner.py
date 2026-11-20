@@ -1,13 +1,14 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from alembic_runner import Backend, Flow, Plan, Runner, RunnerError
+from alembic_runner import CONFIG_KEYS, TOKEN_ENV, Backend, Flow, Plan, Runner, RunnerError
 from alembic_runner.runner import PASSTHROUGH_ENV
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -263,3 +264,48 @@ class RealBinaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(ALEMBIC, "needs the alembic binary on PATH or in $ALEMBIC")
+class ConfigKeyTests(unittest.TestCase):
+    """the keys a stored backend may set are the keys the pinned alembic parses."""
+
+    def plan(self, config):
+        with tempfile.TemporaryDirectory() as d:
+            work = Path(d)
+            (work / "inv.yaml").write_text("schema:\n  types: {}\nobjects: []\n")
+            (work / "backend.json").write_text(json.dumps(config))
+            env = {"PATH": os.environ.get("PATH", ""), "HOME": d}
+            env.update({name: "t" for name in TOKEN_ENV.values()})
+            return subprocess.run(
+                [
+                    ALEMBIC,
+                    "plan",
+                    "-f",
+                    "inv.yaml",
+                    "--backend-config",
+                    "backend.json",
+                    "-o",
+                    "plan.json",
+                ],
+                cwd=work,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+    def test_every_allowed_key_parses(self):
+        for kind, keys in CONFIG_KEYS.items():
+            if kind == "external":
+                continue
+            # an unreachable url: the run stops after the config is read.
+            config = {"backend": kind, **{key: "http://127.0.0.1:9" for key in keys}}
+            done = self.plan(config)
+            self.assertNotIn("parse adapter config", done.stderr, f"{kind}: {done.stderr}")
+
+    def test_a_key_alembic_does_not_take_is_refused(self):
+        for kind in TOKEN_ENV:
+            done = self.plan({"backend": kind, "not_a_key": "x"})
+            self.assertEqual(done.returncode, 65, f"{kind}: {done.stderr}")
+            self.assertIn("parse adapter config", done.stderr, kind)

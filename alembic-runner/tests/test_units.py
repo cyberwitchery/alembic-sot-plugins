@@ -145,6 +145,12 @@ class BackendTests(unittest.TestCase):
         doc = Backend("external", {"args": ["x"]}, command="/usr/bin/adapter").config_document()
         self.assertEqual(doc["command"], "/usr/bin/adapter")
 
+    def test_peeringdb_takes_no_config(self):
+        Backend("peeringdb", {})
+        for key in ("url", "instance"):
+            with self.assertRaises(BackendError, msg=key):
+                Backend("peeringdb", {key: "x"})
+
     def test_unknown_kind(self):
         with self.assertRaises(BackendError):
             Backend("generic", {})

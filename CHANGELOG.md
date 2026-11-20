@@ -3,6 +3,7 @@
 ## Unreleased
 
 - editing a flow supersedes its runs that are not applying yet, so an approval no longer carries over to a changed flow
+- a peeringdb backend takes no config keys, as alembic's peeringdb adapter takes none. one saved with `url` or `instance` passed validation and then failed every run with "exited 65"; it is now refused when saved
 
 ## [0.3.0] - 2026-10-26
 
