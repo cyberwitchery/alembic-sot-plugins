@@ -17,7 +17,7 @@ def sibling(suffix, default):
 
 
 if sys.argv[1:] == ["--version"]:
-    print(sibling(".version", "alembic 0.12.0"))
+    print(sibling(".version", "alembic 0.13.0"))
     sys.exit(0)
 
 here.with_suffix(".record").write_text(
@@ -30,6 +30,7 @@ if behaviour == "sleep":
 if behaviour == "fail":
     print("Error: backend unreachable", file=sys.stderr)
     sys.exit(1)
-if behaviour == "garbage":
-    print("not json")
+if behaviour.startswith("exit "):
+    print("Error: as told", file=sys.stderr)
+    sys.exit(int(behaviour.split()[1]))
 sys.exit(0)

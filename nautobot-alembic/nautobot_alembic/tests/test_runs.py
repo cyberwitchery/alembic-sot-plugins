@@ -11,7 +11,6 @@ from alembic_runner import (
     InventoryOutcome,
     Plan,
     PlanOutcome,
-    StaleCheck,
     Workspace,
 )
 from django.contrib.auth import get_user_model
@@ -47,7 +46,7 @@ class FakeRunner:
         self.root = Path(tempfile.mkdtemp())
 
     def check_version(self):
-        return "0.12.0"
+        return "0.13.0"
 
     def workspace(self, flow):
         return Workspace(self.root, flow.id)
@@ -62,12 +61,11 @@ class FakeRunner:
         self.calls.append("plan")
         return PlanOutcome(completed(), plan=Plan.from_bytes(self.plan_text.encode()))
 
-    def check_stale(self, flow, run, inventory, approved):
-        self.calls.append("check_stale")
-        return StaleCheck(completed(), stale=self.stale)
-
     def apply(self, flow, run, plan, expected):
         self.calls.append("apply")
+        if self.stale:
+            c = completed(("alembic", "apply"), code=65, stderr="Error: the plan is stale")
+            return ApplyOutcome(c, stale=True)
         if not self.apply_ok:
             c = completed(("alembic", "apply"), code=1, stderr="Error: boom")
             return ApplyOutcome(c, error="alembic apply exited 1")
@@ -195,13 +193,13 @@ class FallbackApprovalTests(RunTestCase):
         runner = FakeRunner()
         run = self.apply(run, runner)
         self.assertEqual(run.status, "applied", run.error)
-        self.assertEqual(runner.calls, ["check_stale", "apply"])
+        self.assertEqual(runner.calls, ["apply"])
 
     def test_stale_plan_writes_nothing(self):
         runner = FakeRunner(stale=True)
         run = self.apply(self.approve(self.plan()), runner)
         self.assertEqual(run.status, "stale")
-        self.assertEqual(runner.calls, ["check_stale"])
+        self.assertEqual(runner.calls, ["apply"])
 
     def test_changed_plan_is_refused(self):
         run = self.approve(self.plan())
@@ -220,7 +218,7 @@ class FallbackApprovalTests(RunTestCase):
         self.assertEqual(run.status, "superseded")
         self.assertEqual(runner.calls, [])
 
-    def test_failed_apply_resumes_without_stale_check(self):
+    def test_failed_apply_resumes(self):
         run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
         self.assertEqual(run.status, "apply_failed")
         with self.captureOnCommitCallbacks(execute=True):

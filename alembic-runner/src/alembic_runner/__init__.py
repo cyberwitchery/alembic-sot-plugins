@@ -21,7 +21,6 @@ from .runner import (
     PlanOutcome,
     Runner,
     RunnerError,
-    StaleCheck,
 )
 from .status import (
     ACTIVE,
@@ -59,7 +58,6 @@ __all__ = [
     "RunStatus",
     "Runner",
     "RunnerError",
-    "StaleCheck",
     "StateStore",
     "TransitionError",
     "Workspace",

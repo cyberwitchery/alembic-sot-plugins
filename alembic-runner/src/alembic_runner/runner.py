@@ -1,4 +1,4 @@
-"""running the alembic cli for plan, stale check, apply and drift."""
+"""running the alembic cli for plan, import, map, apply and drift."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .plan import ApplyReport, DocumentError, DriftReport, Plan, sha256
 from .workspace import Workspace
 
 # pre-1.0, a minor release may break the cli, so the range stops at the next minor.
-SUPPORTED = ((0, 12, 0), (0, 13, 0))
+SUPPORTED = ((0, 13, 0), (0, 14, 0))
 
 # what a run inherits from the worker. everything else is built per run, so the
 # host's own secrets (django SECRET_KEY, database passwords) never reach alembic.
@@ -38,6 +38,19 @@ OUTPUT_LIMIT = 1 << 20
 
 # what `plan --report` exits with when the target has drifted.
 DRIFT_EXIT = 2
+
+# what `apply` exits with when the target changed since the plan was made. 65 also
+# means a file that does not parse, but apply only reads a plan alembic wrote and
+# whose hash was checked, and a backend config `plan` already read.
+STALE_EXIT = 65
+
+# alembic's exit codes (docs/cli.md, "exit codes"), as a run's error reports them.
+EXIT_MEANINGS = {
+    64: "usage error",
+    65: "invalid input, or a plan the target changed since",
+    69: "the backend could not be reached or refused the credentials",
+    75: "apply stopped partway; its journal is kept, and applying again resumes it",
+}
 
 _VERSION = re.compile(r"^alembic (\d+)\.(\d+)\.(\d+)\b")
 
@@ -69,7 +82,9 @@ class Completed:
     def describe(self) -> str:
         if self.timed_out:
             return f"alembic {self.argv[1]} timed out after {self.duration:.0f}s"
-        return f"alembic {self.argv[1]} exited {self.exit_code}"
+        meaning = EXIT_MEANINGS.get(self.exit_code)
+        suffix = f": {meaning}" if meaning else ""
+        return f"alembic {self.argv[1]} exited {self.exit_code}{suffix}"
 
 
 @dataclass(frozen=True)
@@ -106,18 +121,12 @@ class InventoryOutcome:
 
 
 @dataclass(frozen=True)
-class StaleCheck:
-    completed: Completed
-    stale: bool
-    current: Plan | None = None
-    error: str | None = None
-
-
-@dataclass(frozen=True)
 class ApplyOutcome:
     completed: Completed
     report: ApplyReport | None = None
     error: str | None = None
+    # alembic refused the plan: the target changed since it was made.
+    stale: bool = False
 
 
 @dataclass(frozen=True)
@@ -207,25 +216,6 @@ class Runner:
             return InventoryOutcome(completed, error=f"alembic wrote no inventory to {out.name}")
         return InventoryOutcome(completed, inventory=out)
 
-    def check_stale(self, flow: Flow, run: str, inventory: Path, approved: Plan) -> StaleCheck:
-        """re-plan without saving anything and compare with the approved plan."""
-        ws = self._workspace(flow)
-        config = self._config(ws, run, flow)
-        args = ["plan", "-f", str(inventory), "--dry-run", *config]
-        args += self._flags(flow)
-        completed = self._run(flow, args, keep_stdout=True)
-        if not completed.ok:
-            return StaleCheck(completed, stale=False, error=completed.describe())
-        try:
-            current = Plan.from_bytes(completed.stdout.encode())
-        except DocumentError as e:
-            return StaleCheck(completed, stale=False, error=f"dry-run output unreadable: {e}")
-        # the dry-run's json is the check's result, not something to keep as a log.
-        completed = Completed(
-            completed.argv, completed.exit_code, "", completed.stderr, completed.duration
-        )
-        return StaleCheck(completed, stale=not approved.same_work(current), current=current)
-
     def apply(self, flow: Flow, run: str, plan: Plan, expected_sha256: str) -> ApplyOutcome:
         if plan.sha256 != expected_sha256:
             raise RunnerError("the plan does not match the approved plan's hash")
@@ -235,12 +225,14 @@ class Runner:
         if sha256(path.read_bytes()) != expected_sha256:
             raise RunnerError("the plan written for apply does not match the approved hash")
         out = ws.run_dir(run) / "apply.json"
-        # the stale check before apply is ours: it compares against the approved
-        # plan with the flow's own flags, which alembic's check cannot see.
-        args = ["apply", "-p", str(path), "-o", str(out), "--no-stale-check", *config]
+        # alembic checks the target against the plan first, with the plan's own adopt
+        # mode, and lets a resumed apply through: what already landed is no conflict.
+        args = ["apply", "-p", str(path), "-o", str(out), *config]
         if flow.allow_delete:
             args.append("--allow-delete")
         completed = self._run(flow, args)
+        if completed.exit_code == STALE_EXIT:
+            return ApplyOutcome(completed, stale=True)
         if not completed.ok:
             return ApplyOutcome(completed, error=completed.describe())
         try:

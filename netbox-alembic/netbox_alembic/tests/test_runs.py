@@ -12,7 +12,6 @@ from alembic_runner import (
     InventoryOutcome,
     Plan,
     PlanOutcome,
-    StaleCheck,
     Workspace,
 )
 from core.models import DataFile, DataSource
@@ -92,13 +91,11 @@ class FakeRunner:
         self.planned_from = Path(inventory).read_text()
         return PlanOutcome(completed(), plan=Plan.from_bytes(self.plan_text.encode()))
 
-    def check_stale(self, flow, run, inventory, approved):
-        self.calls.append("check_stale")
-        self.planned_from = Path(inventory).read_text()
-        return StaleCheck(completed(), stale=self.stale)
-
     def apply(self, flow, run, plan, expected):
         self.calls.append("apply")
+        if self.stale:
+            c = completed(("alembic", "apply"), code=65, stderr="Error: the plan is stale")
+            return ApplyOutcome(c, stale=True)
         if not self.apply_ok:
             c = completed(("alembic", "apply"), code=1, stderr="Error: boom")
             return ApplyOutcome(c, error="alembic apply exited 1")
@@ -295,14 +292,14 @@ class ApplyTests(RunTestCase):
         runner = FakeRunner()
         run = self.apply(self.approve(self.plan()), runner)
         self.assertEqual(run.status, "applied")
-        self.assertEqual(runner.calls, ["check_stale", "apply"])
+        self.assertEqual(runner.calls, ["apply"])
         self.assertEqual(run.apply_report["applied"], [{"uid": "u"}])
 
     def test_stale_plan_writes_nothing(self):
         runner = FakeRunner(stale=True)
         run = self.apply(self.approve(self.plan()), runner)
         self.assertEqual(run.status, "stale")
-        self.assertEqual(runner.calls, ["check_stale"])
+        self.assertEqual(runner.calls, ["apply"])
 
     def test_changed_plan_is_refused(self):
         run = self.approve(self.plan())
@@ -319,7 +316,7 @@ class ApplyTests(RunTestCase):
         self.assertEqual(run.status, "awaiting_approval")
         self.assertEqual(runner.calls, [])
 
-    def test_failed_apply_resumes_without_stale_check(self):
+    def test_failed_apply_resumes(self):
         run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
         self.assertEqual(run.status, "apply_failed")
         self.assertIn("boom", run.error)
@@ -392,15 +389,6 @@ class SourceTests(RunTestCase):
         run = self.plan(FakeRunner())
         self.assertEqual(run.status, "failed")
         self.assertIn("missing.yaml", run.error)
-
-    def test_apply_checks_against_the_derived_inventory(self):
-        self.set_flow(source=self.target, target=self.other_backend())
-        run = self.approve(self.plan(FakeRunner()))
-        runner = FakeRunner()
-        run = self.apply(run, runner)
-        self.assertEqual(run.status, "applied", run.error)
-        self.assertEqual(runner.calls, ["check_stale", "apply"])
-        self.assertEqual(runner.planned_from, IMPORTED)
 
 
 @override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)

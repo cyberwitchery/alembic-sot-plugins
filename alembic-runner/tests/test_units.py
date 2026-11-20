@@ -88,14 +88,6 @@ class PlanTests(unittest.TestCase):
         plan = Plan.from_bytes(plan_bytes([], {"created_fields": ["dcim.device.x"]}))
         self.assertFalse(plan.is_empty)
 
-    def test_same_work_compares_ops_and_schema(self):
-        a = Plan.from_bytes(plan_bytes([CREATE]))
-        self.assertTrue(a.same_work(Plan.from_bytes(plan_bytes([CREATE]))))
-        self.assertFalse(a.same_work(Plan.from_bytes(plan_bytes([CREATE, DELETE]))))
-        self.assertFalse(
-            a.same_work(Plan.from_bytes(plan_bytes([CREATE], {"created_fields": ["x"]})))
-        )
-
     def test_sha256_is_of_the_bytes(self):
         raw = plan_bytes([CREATE])
         self.assertEqual(Plan.from_bytes(raw).sha256, hashlib.sha256(raw).hexdigest())
