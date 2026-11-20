@@ -15,7 +15,7 @@ CONFIG_KEYS = {
     "netbox": frozenset({"url", "instance"}),
     "nautobot": frozenset({"url", "instance"}),
     "infrahub": frozenset({"url", "instance"}),
-    "peeringdb": frozenset({"url", "instance"}),
+    "peeringdb": frozenset(),
     "external": frozenset({"args", "setup", "timeout_seconds", "instance"}),
 }
 

@@ -56,8 +56,8 @@ a backend's kind is a built-in one (netbox, nautobot, infrahub, peeringdb) or an
 [alembic plugin](https://github.com/cyberwitchery/alembic/blob/main/docs/cli.md#plugins):
 each `.yaml` file in `plugins_dir` is one, named for the file, and a run uses
 it as `alembic --backend <name>`. a built-in backend's config holds only
-connection keys (`url`, `instance`); a plugin backend has none, its plugin file
-is its config. commands, working directories and process environments come from
+connection keys: `url` and `instance` for netbox, nautobot and infrahub, none
+for peeringdb. a plugin backend has none, its plugin file is its config. commands, working directories and process environments come from
 files on the host, so whoever can edit a backend cannot run a program on the
 worker.
 
