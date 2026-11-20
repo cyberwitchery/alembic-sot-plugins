@@ -182,10 +182,10 @@ def run_guarded(run, execute: Callable, logger, known: Iterable[type[Exception]]
         raise
 
 
-def start_apply(run) -> tuple[Plan, bool]:
+def start_apply(run) -> Plan:
     """take the run into applying: one apply per target at a time, from an
     approved run or a failed apply, and only with the plan that was approved.
-    returns the plan and whether this resumes a failed apply."""
+    alembic resumes a failed apply from its journal, after its stale check."""
     model = type(run)
     with transaction.atomic():
         current = locked(run)
@@ -198,9 +198,8 @@ def start_apply(run) -> tuple[Plan, bool]:
             raise RunFailed(f"Another run is applying to {run.flow.target}; try again later.")
         if current.status not in (S.APPROVED.value, S.APPLY_FAILED.value):
             raise ActionError(f"a {current.status} run is not applied")
-        resuming = current.status == S.APPLY_FAILED.value
         # checked before the move, so a plan that fails it never becomes resumable.
         plan = approved_plan(current.plan, current.approved_sha256)
         move(current, S.APPLYING, apply_started_at=current.apply_started_at or timezone.now())
     run.refresh_from_db()
-    return plan, resuming
+    return plan

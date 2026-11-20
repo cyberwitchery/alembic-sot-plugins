@@ -70,10 +70,6 @@ class Plan:
         """no ops and no pending schema work: applying it would write nothing."""
         return not self.ops and not any(self.schema_preview.values())
 
-    def same_work(self, other: Plan) -> bool:
-        """whether applying `other` would do exactly what applying this plan would."""
-        return self.ops == other.ops and self.schema_preview == other.schema_preview
-
 
 @dataclass(frozen=True)
 class DriftReport:

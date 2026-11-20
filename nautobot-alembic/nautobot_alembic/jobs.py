@@ -89,18 +89,15 @@ class ApplyRun(RunJob):
         description = "Apply a run's approved plan to its target."
 
     def execute(self, run):
-        plan, resuming = hosting.start_apply(run)
+        plan = hosting.start_apply(run)
         r = runner()
         r.check_version()
         outcome = apply_run(
             r,
             runner_flow(run.flow),
             str(run.pk),
-            run.input,
-            run.input_entry or run.flow.inventory,
             plan,
             run.approved_sha256,
-            resuming,
             run.output,
             self.logger,
         )

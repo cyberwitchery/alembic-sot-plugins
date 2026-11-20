@@ -30,6 +30,13 @@ the app's queue:
 nautobot-server celery worker -Q alembic
 ```
 
+where a failed apply can resume depends on the state store. with `"local"`
+state, alembic keeps the apply journal in the flow's working directory, so run
+one worker for the queue with `work_root` on persistent disk: a resume has to
+run where the interrupted apply ran. with `"postgres"` state, the built-in
+backends keep the journal in that database and any worker can resume; an
+external adapter or plugin keeps its own journal, wherever it writes it.
+
 ## settings
 
 ```python

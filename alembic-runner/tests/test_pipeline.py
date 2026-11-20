@@ -73,11 +73,9 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaises(RunFailed):
             snapshot([("inv.yaml", big)], "inv.yaml", "x", LOG)
 
-    def test_output_names_the_stale_check(self):
-        c = Completed(["alembic", "plan", "-f", "x", "--dry-run"], 0, "", "", 0.1)
-        self.assertEqual(
-            output_text(c, before="earlier"), "earlier\n\n$ alembic plan --dry-run  (stale check)"
-        )
+    def test_output_names_the_drift_report(self):
+        c = Completed(["alembic", "plan", "-f", "x", "--report"], 0, "", "", 0.1)
+        self.assertEqual(output_text(c, before="earlier"), "earlier\n\n$ alembic plan --report")
 
     def test_approved_plan_refuses_other_bytes(self):
         with self.assertRaises(RunFailed):
@@ -119,17 +117,14 @@ class PipelineTests(unittest.TestCase):
             LOG,
         )
 
-    def apply(self, run, outcome, resuming=False):
+    def apply(self, run, outcome):
         plan = approved_plan(outcome.fields["plan"], outcome.fields["plan_sha256"])
         return apply_run(
             self.runner,
             self.flow,
             run,
-            outcome.fields["input"],
-            outcome.fields["input_entry"],
             plan,
             outcome.fields["plan_sha256"],
-            resuming,
             outcome.fields["output"],
             LOG,
         )

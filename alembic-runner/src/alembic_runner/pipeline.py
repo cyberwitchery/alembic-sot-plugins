@@ -41,10 +41,8 @@ def output_text(*completed: Completed, before: str = "") -> str:
     """alembic's output, one block per command, after what earlier jobs recorded."""
     blocks = [before.rstrip()] if before else []
     for c in completed:
-        mode = next((f" {flag}" for flag in ("--dry-run", "--report") if flag in c.argv), "")
+        mode = " --report" if "--report" in c.argv else ""
         head = f"$ alembic {c.argv[1]}{mode}"
-        if mode == " --dry-run":
-            head += "  (stale check)"
         body = f"{c.stdout}{c.stderr}".rstrip()
         blocks.append(f"{head}\n{body}" if body else head)
     return "\n\n".join(blocks)
@@ -181,44 +179,29 @@ def apply_run(
     runner: Runner,
     flow: Flow,
     run: str,
-    files: dict[str, str],
-    entry: str,
     plan: Plan,
     approved_sha256: str,
-    resuming: bool,
     before: str,
     logger: logging.Logger,
 ) -> Outcome:
-    """check the approved plan against the target, then apply it."""
-    inventory = runner.workspace(flow).write_input(run, files, entry)
-    outputs: list[Completed] = []
-    if not resuming:
-        # a resumed apply re-runs its plan on top of what already landed, so a
-        # re-plan would differ by construction. the journal carries it instead.
-        check = runner.check_stale(flow, run, inventory, plan)
-        outputs.append(check.completed)
-        if check.error:
-            raise failed(check, output_text(*outputs, before=before))
-        logger.info(f"stale check: the target {'changed' if check.stale else 'is unchanged'}")
-        if check.stale:
-            return Outcome(
-                S.STALE,
-                {
-                    "output": output_text(*outputs, before=before),
-                    "error": "The target changed since this plan was made; plan again.",
-                },
-            )
-
+    """apply the approved plan. alembic refuses it, writing nothing, when the
+    target changed since it was made."""
     outcome = runner.apply(flow, run, plan, approved_sha256)
-    outputs.append(outcome.completed)
+    output = output_text(outcome.completed, before=before)
+    if outcome.stale:
+        logger.info("stale check: the target changed")
+        return Outcome(
+            S.STALE,
+            {"output": output, "error": "The target changed since this plan was made; plan again."},
+        )
     if outcome.error:
-        raise failed(outcome, output_text(*outputs, before=before))
+        raise failed(outcome, output)
     logger.info(f"applied {outcome.report.applied_count} operations")
     return Outcome(
         S.APPLIED,
         {
             "apply_report": outcome.report.doc,
-            "output": output_text(*outputs, before=before),
+            "output": output,
             "error": "",
         },
     )

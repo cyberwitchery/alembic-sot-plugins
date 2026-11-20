@@ -89,16 +89,20 @@ class FakeBinaryTests(unittest.TestCase):
         self.assertEqual(outcome.error, "alembic plan exited 1")
         self.assertIn("backend unreachable", outcome.completed.stderr)
 
+    def test_exit_codes_are_named(self):
+        for code, meaning in (
+            (64, "usage error"),
+            (69, "the backend could not be reached"),
+            (75, "applying again resumes it"),
+        ):
+            self.behave(f"exit {code}")
+            outcome = self.runner.plan(self.flow, "9", self.inventory)
+            self.assertTrue(outcome.error.startswith(f"alembic plan exited {code}: "))
+            self.assertIn(meaning, outcome.error)
+
     def test_missing_output_is_an_error(self):
         outcome = self.runner.plan(self.flow, "9", self.inventory)
         self.assertIn("plan output unreadable", outcome.error)
-
-    def test_unreadable_dry_run_is_not_a_verdict(self):
-        self.behave("garbage")
-        approved = Plan.from_bytes(b'{"ops": []}')
-        check = self.runner.check_stale(self.flow, "9", self.inventory, approved)
-        self.assertFalse(check.stale)
-        self.assertIn("dry-run output unreadable", check.error)
 
     def test_timeout(self):
         self.behave("sleep")
@@ -113,17 +117,24 @@ class FakeBinaryTests(unittest.TestCase):
         with self.assertRaises(RunnerError):
             self.runner.apply(self.flow, "9", plan, "0" * 64)
 
-    def test_apply_leaves_the_stale_check_to_the_runner(self):
-        # the runner checks against the approved plan with the flow's flags first
+    def test_apply_leaves_the_stale_check_to_alembic(self):
         plan = Plan.from_bytes(b'{"ops": []}')
         self.runner.apply(self.flow, "9", plan, plan.sha256)
         argv = self.record()["argv"]
         self.assertEqual(argv[:3], ["apply", "-p", argv[2]])
-        self.assertIn("--no-stale-check", argv)
+        self.assertNotIn("--no-stale-check", argv)
+
+    def test_apply_exit_65_is_stale(self):
+        self.behave("exit 65")
+        plan = Plan.from_bytes(b'{"ops": []}')
+        outcome = self.runner.apply(self.flow, "9", plan, plan.sha256)
+        self.assertTrue(outcome.stale)
+        self.assertIsNone(outcome.error)
+        self.assertIsNone(outcome.report)
 
     def test_version_range(self):
-        self.assertEqual(self.runner.check_version(), "0.12.0")
-        for text in ("alembic 0.11.0", "alembic 0.13.0", "something else"):
+        self.assertEqual(self.runner.check_version(), "0.13.0")
+        for text in ("alembic 0.12.0", "alembic 0.14.0", "something else"):
             self.fake.with_suffix(".version").write_text(text)
             with self.assertRaises(RunnerError, msg=text):
                 self.runner.check_version()
@@ -191,10 +202,6 @@ class RealBinaryTests(unittest.TestCase):
         self.assertIsNone(outcome.error, outcome.completed.stderr)
         self.assertEqual(outcome.plan.summary(), {"create": 1, "update": 0, "delete": 0})
 
-        check = self.runner.check_stale(self.flow, "1", self.inventory, outcome.plan)
-        self.assertIsNone(check.error, check.completed.stderr)
-        self.assertFalse(check.stale)
-
         applied = self.runner.apply(self.flow, "1", outcome.plan, outcome.plan.sha256)
         self.assertIsNone(applied.error, applied.completed.stderr)
         self.assertEqual(applied.report.applied_count, 1)
@@ -212,9 +219,11 @@ class RealBinaryTests(unittest.TestCase):
         self.assertEqual(outcome.plan.summary()["update"], 1)
 
         self.edit_store("edited again")
-        check = self.runner.check_stale(self.flow, "2", self.inventory, outcome.plan)
-        self.assertIsNone(check.error, check.completed.stderr)
-        self.assertTrue(check.stale)
+        applied = self.runner.apply(self.flow, "2", outcome.plan, outcome.plan.sha256)
+        self.assertTrue(applied.stale, applied.completed.stderr)
+        self.assertIsNone(applied.error)
+        store = json.loads(self.store.read_text())
+        self.assertEqual(store["objects"]["1"]["attrs"]["name"], "edited again")
 
     def test_drift_is_reported(self):
         self.runner.apply(self.flow, "1", *self._plan("1"))
