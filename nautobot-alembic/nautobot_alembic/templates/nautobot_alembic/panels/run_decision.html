@@ -14,6 +14,12 @@
   </form>
 {% elif decide_reason %}
   <span class="text-muted">{{ decide_reason }}</span>
+{% elif can_resume and object.status == "approved" %}
+  <p>The apply has not started. Starting it applies the approved plan.</p>
+  <form action="{% url 'plugins:nautobot_alembic:run_resume' pk=object.pk %}" method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-warning">Start apply</button>
+  </form>
 {% elif can_resume %}
   <p>The apply stopped partway. Resuming re-runs the approved plan and skips what already landed.</p>
   <form action="{% url 'plugins:nautobot_alembic:run_resume' pk=object.pk %}" method="post">

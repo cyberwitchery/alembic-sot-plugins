@@ -1,5 +1,12 @@
 from alembic_runner import RunStatus
-from alembic_runner.review import BUSY, PLAN_AGAIN, drift_rows, group_ops, input_names
+from alembic_runner.review import (
+    BUSY,
+    PLAN_AGAIN,
+    deferred,
+    drift_rows,
+    group_ops,
+    input_names,
+)
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
@@ -251,7 +258,8 @@ class RunView(generic.ObjectView):
             (instance.input or {}).get(instance.input_entry or instance.flow.inventory)
         )
         waiting = instance.status == RunStatus.AWAITING_APPROVAL.value
-        busy = instance.status in BUSY
+        held = deferred(instance.status, instance.error)
+        busy = instance.status in BUSY and not held
         return {
             "busy": busy,
             "show_output": instance.status in (RunStatus.FAILED.value, RunStatus.STALE.value)
@@ -262,7 +270,7 @@ class RunView(generic.ObjectView):
             "decide_reason": reason if waiting else None,
             "can_plan_again": instance.status in PLAN_AGAIN
             and user.has_perm("netbox_alembic.add_run"),
-            "can_resume": instance.status == RunStatus.APPLY_FAILED.value
+            "can_resume": (instance.status == RunStatus.APPLY_FAILED.value or held)
             and user.has_perm("netbox_alembic.approve_run", instance),
         }
 

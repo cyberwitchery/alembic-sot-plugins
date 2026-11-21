@@ -12,12 +12,6 @@ class BackendSerializer(TaggedModelSerializerMixin, NautobotModelSerializer):
         model = Backend
         fields = "__all__"
 
-    def validate(self, data):
-        data = super().validate(data)
-        instance = Backend(**{k: v for k, v in data.items() if k != "tags"})
-        instance.clean()
-        return data
-
 
 class FlowSerializer(TaggedModelSerializerMixin, NautobotModelSerializer):
     class Meta:
