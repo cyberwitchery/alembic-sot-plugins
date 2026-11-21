@@ -256,6 +256,19 @@ class FallbackApprovalTests(RunTestCase):
         self.assertEqual(run.status, "applied")
         self.assertEqual(run.error, "")
 
+    def test_a_busy_target_leaves_a_failed_apply_its_error(self):
+        run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
+        error = run.error
+        self.applying_elsewhere()
+        with self.captureOnCommitCallbacks(execute=True):
+            actions.resume(run, self.approver)
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "apply_failed")
+        self.assertEqual(run.error, error)
+        self.assertIn("boom", run.error)
+        self.assertEqual(runner.calls, [])
+
     def test_the_target_is_locked_before_it_is_checked(self):
         run = self.approve(self.plan())
         with CaptureQueriesContext(connection) as queries:

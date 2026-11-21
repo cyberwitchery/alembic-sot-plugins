@@ -168,10 +168,11 @@ def fail(run, message: str, output: str = "") -> None:
 
 
 def defer(run, message: str) -> None:
-    """leave a run that could not start in its status, with the reason on it."""
+    """leave a run that could not start in its status. an approved run gets the
+    reason; a failed apply keeps the error it failed with."""
     with transaction.atomic():
         run = locked(run)
-        if run.status in STARTABLE:
+        if run.status == S.APPROVED.value:
             run.error = message
             _save(run)
 
