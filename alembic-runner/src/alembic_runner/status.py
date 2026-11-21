@@ -41,6 +41,9 @@ TERMINAL = frozenset(s for s in RunStatus if s not in TRANSITIONS)
 # at most one run per flow is in one of these; hosts enforce it in the database.
 ACTIVE = frozenset({S.PENDING, S.PLANNING, S.AWAITING_APPROVAL, S.APPROVED, S.APPLYING})
 
+# an apply job starts from these: an approval, or a failed apply it resumes.
+STARTABLE = frozenset({S.APPROVED, S.APPLY_FAILED})
+
 
 def failure_status(current: RunStatus | str) -> RunStatus | None:
     """where a run goes when its job fails: a failed plan is over, a failed apply

@@ -1,5 +1,12 @@
 from alembic_runner import RunStatus
-from alembic_runner.review import BUSY, PLAN_AGAIN, drift_rows, group_ops, input_names
+from alembic_runner.review import (
+    BUSY,
+    PLAN_AGAIN,
+    deferred,
+    drift_rows,
+    group_ops,
+    input_names,
+)
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
@@ -208,6 +215,7 @@ class RunUIViewSet(
             return context
         user = request.user
         waiting = instance.status == RunStatus.AWAITING_APPROVAL.value
+        held = deferred(instance.status, instance.error)
         workflow = actions.workflow_for(instance)
         reason = actions.refusal(instance, user)
         text = (instance.input or {}).get(instance.input_entry or instance.flow.inventory)
@@ -217,11 +225,11 @@ class RunUIViewSet(
                 "workflow": workflow,
                 "can_decide": waiting and workflow is None and reason is None,
                 "decide_reason": reason if waiting and workflow is None else None,
-                "can_resume": instance.status == RunStatus.APPLY_FAILED.value
+                "can_resume": (instance.status == RunStatus.APPLY_FAILED.value or held)
                 and user.has_perm("nautobot_alembic.approve_run", instance),
                 "can_plan_again": instance.status in PLAN_AGAIN
                 and user.has_perm("nautobot_alembic.add_run"),
-                "busy": instance.status in BUSY,
+                "busy": instance.status in BUSY and not held,
                 "show_output": instance.status
                 in (RunStatus.FAILED.value, RunStatus.STALE.value, RunStatus.APPLY_FAILED.value),
                 "op_groups": group_ops(instance.plan, names),

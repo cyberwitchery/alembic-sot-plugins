@@ -12,11 +12,14 @@ from alembic_runner import (
     Plan,
     PlanOutcome,
     Workspace,
+    hosting,
 )
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from nautobot.extras.models import GitRepository, SecretsGroup
 from nautobot.users.models import ObjectPermission
 
@@ -227,6 +230,54 @@ class FallbackApprovalTests(RunTestCase):
         self.assertEqual(self.apply(run, runner).status, "applied")
         self.assertEqual(runner.calls, ["apply"])
 
+    def applying_elsewhere(self):
+        """a run of another flow, applying to the same target."""
+        flow = Flow.objects.create(
+            name="other",
+            git_repository=self.repository,
+            inventory="inventory.yaml",
+            target=self.target,
+        )
+        return Run.objects.create(flow=flow, status="applying")
+
+    def test_a_busy_target_keeps_the_approval(self):
+        other = self.applying_elsewhere()
+        runner = FakeRunner()
+        run = self.apply(self.approve(self.plan()), runner)
+        self.assertEqual(run.status, "approved")
+        self.assertIn("Another run is applying", run.error)
+        self.assertEqual(runner.calls, [])
+        Run.objects.filter(pk=other.pk).update(status="applied")
+        self.enqueued.clear()
+        with self.captureOnCommitCallbacks(execute=True):
+            actions.resume(run, self.approver)
+        self.assertEqual(self.enqueued, [("ApplyRun", run.pk)])
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "applied")
+        self.assertEqual(run.error, "")
+
+    def test_a_busy_target_leaves_a_failed_apply_its_error(self):
+        run = self.apply(self.approve(self.plan()), FakeRunner(apply_ok=False))
+        error = run.error
+        self.applying_elsewhere()
+        with self.captureOnCommitCallbacks(execute=True):
+            actions.resume(run, self.approver)
+        runner = FakeRunner()
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "apply_failed")
+        self.assertEqual(run.error, error)
+        self.assertIn("boom", run.error)
+        self.assertEqual(runner.calls, [])
+
+    def test_the_target_is_locked_before_it_is_checked(self):
+        run = self.approve(self.plan())
+        with CaptureQueriesContext(connection) as queries:
+            hosting.start_apply(run)
+        sql = [q["sql"] for q in queries.captured_queries]
+        locks = [i for i, q in enumerate(sql) if "_backend" in q and "FOR UPDATE" in q]
+        checks = [i for i, q in enumerate(sql) if q.startswith("SELECT 1") and "'applying'" in q]
+        self.assertTrue(locks and checks and locks[0] < checks[0], sql)
+
 
 class WorkflowTests(RunTestCase):
     """a matching approval workflow decides; the app's hooks move the run."""
@@ -315,6 +366,27 @@ class BackendValidationTests(TestCase):
         ):
             with self.subTest(fields=fields), self.assertRaises(ValidationError):
                 self.check(**fields)
+
+
+class FlowValidationTests(TestCase):
+    def test_a_flow_that_may_delete_adopts(self):
+        repository = GitRepository.objects.create(
+            name="r", slug="r", remote_url="file:///tmp/none", branch="main"
+        )
+        target = Backend.objects.create(name="t", kind="nautobot", config={"url": "http://x"})
+        flow = Flow(
+            name="f",
+            git_repository=repository,
+            inventory="inv.yaml",
+            target=target,
+            allow_delete=True,
+            no_adopt=True,
+        )
+        with self.assertRaises(ValidationError) as caught:
+            flow.full_clean()
+        self.assertIn("no_adopt", caught.exception.message_dict)
+        flow.no_adopt = False
+        flow.full_clean()
 
 
 @override_settings(PLUGINS_CONFIG=PLUGINS)

@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from .pipeline import Outcome, RunFailed, approved_plan
 from .plan import Plan
-from .status import RunStatus, TransitionError, check_transition, failure_status
+from .status import STARTABLE, RunStatus, TransitionError, check_transition, failure_status
 
 S = RunStatus
 
@@ -32,6 +32,10 @@ EDIT_SUPERSEDES = (S.PENDING.value, S.PLANNING.value, S.APPROVED.value, *SUPERSE
 
 class ActionError(ValidationError):
     """a run cannot do what was asked of it in its current state."""
+
+
+class TargetBusy(Exception):
+    """another run is applying to the target, so this one cannot start yet."""
 
 
 def _save(run) -> None:
@@ -129,8 +133,8 @@ def reject(run, user):
 def check_resumable(run, user) -> None:
     if not user.has_perm(_approve_perm(run), run):
         raise PermissionDenied("You may not resume this run.")
-    if run.status != S.APPLY_FAILED.value:
-        raise ActionError("Only a failed apply can be resumed.")
+    if run.status not in STARTABLE:
+        raise ActionError("Only an approved run or a failed apply can be started.")
 
 
 # jobs
@@ -163,11 +167,25 @@ def fail(run, message: str, output: str = "") -> None:
             move(run, new, **fields)
 
 
+def defer(run, message: str) -> None:
+    """leave a run that could not start in its status. an approved run gets the
+    reason; a failed apply keeps the error it failed with."""
+    with transaction.atomic():
+        run = locked(run)
+        if run.status == S.APPROVED.value:
+            run.error = message
+            _save(run)
+
+
 def run_guarded(run, execute: Callable, logger, known: Iterable[type[Exception]] = ()) -> None:
     """run a job's body. a failure it expects becomes the run's status; anything
     else does too, and is raised again so the host marks its job as errored."""
     try:
         execute(run)
+    except TargetBusy as e:
+        # the run stays approved, or resumable; resume starts it again.
+        logger.warning(str(e))
+        defer(run, str(e))
     except RunFailed as e:
         logger.error(str(e))
         fail(run, str(e), e.output)
@@ -185,21 +203,31 @@ def run_guarded(run, execute: Callable, logger, known: Iterable[type[Exception]]
 def start_apply(run) -> Plan:
     """take the run into applying: one apply per target at a time, from an
     approved run or a failed apply, and only with the plan that was approved.
-    alembic resumes a failed apply from its journal, after its stale check."""
+    alembic resumes a failed apply from its journal, after its stale check.
+    raises TargetBusy while another run applies to the target."""
     model = type(run)
+    target = run.flow.target
     with transaction.atomic():
         current = locked(run)
+        if current.status not in STARTABLE:
+            raise ActionError(f"a {current.status} run is not applied")
+        # runs starting on one target queue on its row, so two runs of
+        # different flows cannot both find it free.
+        locked(target)
         busy = (
-            model.objects.filter(flow__target=run.flow.target, status=S.APPLYING.value)
+            model.objects.filter(flow__target=target, status=S.APPLYING.value)
             .exclude(pk=run.pk)
             .select_for_update()
         )
         if busy.exists():
-            raise RunFailed(f"Another run is applying to {run.flow.target}; try again later.")
-        if current.status not in (S.APPROVED.value, S.APPLY_FAILED.value):
-            raise ActionError(f"a {current.status} run is not applied")
+            raise TargetBusy(f"Another run is applying to {target}; try again later.")
         # checked before the move, so a plan that fails it never becomes resumable.
         plan = approved_plan(current.plan, current.approved_sha256)
-        move(current, S.APPLYING, apply_started_at=current.apply_started_at or timezone.now())
+        move(
+            current,
+            S.APPLYING,
+            apply_started_at=current.apply_started_at or timezone.now(),
+            error="",
+        )
     run.refresh_from_db()
     return plan
