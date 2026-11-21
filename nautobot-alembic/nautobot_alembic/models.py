@@ -170,6 +170,10 @@ class Flow(PrimaryModel):
         self.map_spec = _relative(self.map_spec, "map_spec")
         if not self.inventory:
             raise ValidationError({"inventory": "Name the inventory file."})
+        if self.allow_delete and self.no_adopt:
+            raise ValidationError(
+                {"no_adopt": "A flow that may delete has to adopt: alembic refuses both."}
+            )
 
     def save(self, *args, **kwargs):
         edited = not self._state.adding

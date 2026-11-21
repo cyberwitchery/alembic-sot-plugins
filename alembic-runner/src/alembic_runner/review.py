@@ -27,6 +27,12 @@ BUSY = frozenset(
 )
 
 
+def deferred(status: str, error: str) -> bool:
+    """an approved run whose apply did not start because another run was applying
+    to its target. it waits to be started again, not on a job."""
+    return status == RunStatus.APPROVED.value and bool(error)
+
+
 # runs whose page offers a fresh plan of the flow.
 PLAN_AGAIN = frozenset(
     s.value for s in (RunStatus.STALE, RunStatus.FAILED, RunStatus.EXPIRED, RunStatus.DRIFTED)

@@ -13,11 +13,14 @@ from alembic_runner import (
     Plan,
     PlanOutcome,
     Workspace,
+    hosting,
 )
 from core.models import DataFile, DataSource
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from users.models import ObjectPermission, User
 
@@ -342,6 +345,38 @@ class ApplyTests(RunTestCase):
         failed.refresh_from_db()
         self.assertEqual(failed.status, "superseded")
 
+    def applying_elsewhere(self):
+        """a run of another flow, applying to the same target."""
+        flow = Flow.objects.create(
+            name="other", data_source=self.source, inventory="inventory.yaml", target=self.target
+        )
+        return Run.objects.create(flow=flow, status="applying")
+
+    def test_a_busy_target_keeps_the_approval(self):
+        other = self.applying_elsewhere()
+        runner = FakeRunner()
+        run = self.apply(self.approve(self.plan()), runner)
+        self.assertEqual(run.status, "approved")
+        self.assertIn("Another run is applying", run.error)
+        self.assertEqual(runner.calls, [])
+        Run.objects.filter(pk=other.pk).update(status="applied")
+        self.enqueued.clear()
+        with self.captureOnCommitCallbacks(execute=True):
+            actions.resume(run, self.approver)
+        self.assertEqual(self.enqueued, [("ApplyRunJob", run.pk)])
+        run = self.apply(run, runner)
+        self.assertEqual(run.status, "applied")
+        self.assertEqual(run.error, "")
+
+    def test_the_target_is_locked_before_it_is_checked(self):
+        run = self.approve(self.plan())
+        with CaptureQueriesContext(connection) as queries:
+            hosting.start_apply(run)
+        sql = [q["sql"] for q in queries.captured_queries]
+        locks = [i for i, q in enumerate(sql) if "_backend" in q and "FOR UPDATE" in q]
+        checks = [i for i, q in enumerate(sql) if q.startswith("SELECT 1") and "'applying'" in q]
+        self.assertTrue(locks and checks and locks[0] < checks[0], sql)
+
 
 @override_settings(PLUGINS_CONFIG=PLUGIN_SETTINGS)
 class SourceTests(RunTestCase):
@@ -439,3 +474,20 @@ class FlowValidationTests(TestCase):
             flow = Flow(name="f", data_source=source, target=target, root=root, inventory=inventory)
             with self.subTest(root=root, inventory=inventory), self.assertRaises(ValidationError):
                 flow.full_clean()
+
+    def test_a_flow_that_may_delete_adopts(self):
+        source = DataSource.objects.create(name="s", type="local", source_url="file:///tmp")
+        target = Backend.objects.create(name="t", kind="netbox", config={"url": "https://x"})
+        flow = Flow(
+            name="f",
+            data_source=source,
+            target=target,
+            inventory="inv.yaml",
+            allow_delete=True,
+            no_adopt=True,
+        )
+        with self.assertRaises(ValidationError) as caught:
+            flow.full_clean()
+        self.assertIn("no_adopt", caught.exception.message_dict)
+        flow.no_adopt = False
+        flow.full_clean()

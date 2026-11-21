@@ -10,6 +10,10 @@
 - `apply_run` takes no inventory files or `resuming` flag, `hosting.start_apply` returns only the plan, and `Runner.check_stale`, `StaleCheck` and `Plan.same_work` are removed
 - the docs say where a failed apply can resume: on the same worker with local state, on any worker with postgres state for the built-in backends
 - a peeringdb backend takes no config keys, as alembic's peeringdb adapter takes none. one saved with `url` or `instance` passed validation and then failed every run with "exited 65"; it is now refused when saved
+- an approved run whose target is busy with another apply stays approved, with the reason on the run, instead of failing. the resume action starts it once the target is free
+- two approved runs of different flows on one target can no longer both start applying
+- a flow cannot both allow deletes and refuse adoption. alembic refuses that pair, so every plan of such a flow exited `64`; it is now refused when saved
+- nautobot: a partial api update of a backend, such as a `PATCH` of its description, no longer fails validation
 
 ## [0.3.0] - 2026-10-26
 

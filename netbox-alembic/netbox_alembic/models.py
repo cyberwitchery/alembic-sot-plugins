@@ -191,6 +191,10 @@ class Flow(NetBoxModel):
             setattr(self, field, value)
         if not self.inventory:
             raise ValidationError({"inventory": _("Name the inventory file.")})
+        if self.allow_delete and self.no_adopt:
+            raise ValidationError(
+                {"no_adopt": _("A flow that may delete has to adopt: alembic refuses both.")}
+            )
 
     def save(self, *args, **kwargs):
         edited = not self._state.adding

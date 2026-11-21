@@ -30,7 +30,8 @@ plan (background job: sync the data source, snapshot the files, alembic plan)
 - a newer plan supersedes the flow's waiting plan and takes away a pending
   resume. editing the flow supersedes every run of it that is not applying
   yet, approved ones included. a flow has one run in progress at a time, and a
-  target one apply.
+  target one apply. an approved run whose target is busy stays approved and
+  says why; resume starts it once the other apply is done.
 
 a drift run (`alembic plan --report`) records how the target differs from the
 inventory and never goes to approval.

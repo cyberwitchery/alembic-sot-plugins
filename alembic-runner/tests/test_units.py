@@ -7,7 +7,9 @@ from pathlib import Path
 
 from alembic_runner import (
     ACTIVE,
+    STARTABLE,
     TERMINAL,
+    TRANSITIONS,
     ApplyReport,
     Backend,
     BackendError,
@@ -24,6 +26,7 @@ from alembic_runner import (
     plugin_names,
     token_env,
 )
+from alembic_runner.review import deferred
 
 S = RunStatus
 
@@ -71,6 +74,15 @@ class StatusTests(unittest.TestCase):
 
     def test_active_runs_are_not_terminal(self):
         self.assertFalse(ACTIVE & TERMINAL)
+
+    def test_an_apply_starts_from_an_approval_or_a_failed_apply(self):
+        self.assertEqual(STARTABLE, {s for s, moves in TRANSITIONS.items() if S.APPLYING in moves})
+        self.assertIn("approved", STARTABLE)
+
+    def test_an_approved_run_with_a_reason_waits_to_be_started(self):
+        self.assertTrue(deferred("approved", "Another run is applying to t; try again later."))
+        self.assertFalse(deferred("approved", ""))
+        self.assertFalse(deferred("apply_failed", "boom"))
 
 
 class PlanTests(unittest.TestCase):

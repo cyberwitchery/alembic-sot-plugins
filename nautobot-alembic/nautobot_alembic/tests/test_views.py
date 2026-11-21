@@ -122,6 +122,17 @@ class PageTests(ViewTestCase):
         self.assertNotIn("Approve and apply", page)
         self.assertIn("Someone other than the requester approves this run.", page)
 
+    def test_a_held_run_offers_to_start_its_apply(self):
+        run = self.waiting_run()
+        Run.objects.filter(pk=run.pk).update(
+            status="approved", error="Another run is applying to t; try again later."
+        )
+        page = self.client_for(self.approver).get(run.get_absolute_url()).content.decode()
+        self.assertIn("Start apply", page)
+        page = self.client_for(self.viewer).get(run.get_absolute_url()).content.decode()
+        self.assertNotIn("Start apply", page)
+        self.assertNotIn("This page reloads", page)
+
     def test_plan_download_is_the_stored_bytes(self):
         run = self.waiting_run()
         url = reverse("plugins:nautobot_alembic:run_plan_json", args=[run.pk])
@@ -197,3 +208,13 @@ class ApiTests(ViewTestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("token", json.dumps(response.json()))
+
+    def test_a_backend_takes_a_partial_update(self):
+        api = self.api_for(User.objects.create_user("patcher", is_superuser=True))
+        url = f"/api/plugins/alembic/backends/{self.target.pk}/"
+        response = api.patch(url, {"description": "lab"}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.target.refresh_from_db()
+        self.assertEqual(self.target.description, "lab")
+        response = api.patch(url, {"config": {"url": "x", "token": "leak"}}, format="json")
+        self.assertEqual(response.status_code, 400)
