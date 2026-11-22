@@ -1,7 +1,8 @@
 # nautobot
 
-`nautobot-alembic` has the same models, runs and guarantees. what differs is
-where things come from:
+[install](index.md#install) covers putting `nautobot-alembic` on nautobot.
+the app has the same models, runs and guarantees as the netbox plugin. what
+differs is where things come from:
 
 - a flow's inventory lives in a nautobot **git repository**, pulled at plan time.
 - a backend's token comes from a **secrets group** (access type http(s), secret
@@ -13,29 +14,15 @@ where things come from:
   app's own `approve` permission, as in netbox.
 - the jobs are hidden nautobot jobs on the `alembic` queue.
 
-## install
+## jobs
 
-on every nautobot host, and on the worker that runs the jobs:
-
-```sh
-pip install nautobot-alembic
-```
-
-put the `alembic` binary on the worker ([releases](https://github.com/cyberwitchery/alembic/releases)
-attach static binaries), add `nautobot_alembic` to `PLUGINS` in
-`nautobot_config.py`, run `nautobot-server post_upgrade`, and start a worker for
-the app's queue:
-
-```sh
-nautobot-server celery worker -Q alembic
-```
-
-where a failed apply can resume depends on the state store. with `"local"`
-state, alembic keeps the apply journal in the flow's working directory, so run
-one worker for the queue with `work_root` on persistent disk: a resume has to
-run where the interrupted apply ran. with `"postgres"` state, the built-in
-backends keep the journal in that database and any worker can resume; an
-external adapter or plugin keeps its own journal, wherever it writes it.
+nautobot registers an app's jobs disabled. the app's two jobs, plan and apply,
+are hidden and start only from its own actions, so the app enables them when
+nautobot reports its database ready, which `nautobot-server post_upgrade` does.
+that is why install runs it. a run whose job is disabled never starts: a plan
+stays `pending` and holds its flow, an approved run stays `approved`. run
+`post_upgrade` again to enable the jobs; resume starts an approved run, and
+editing the flow supersedes a pending one.
 
 ## settings
 
@@ -45,9 +32,7 @@ PLUGINS_CONFIG = {
     "nautobot_alembic": {
         "alembic_path": "/usr/local/bin/alembic",
         "work_root": "/var/lib/nautobot-alembic",
-        # identity state. "local" keeps it in each flow's directory.
         "state": {"backend": "postgres", "postgres_url": "postgres://alembic@db/alembic"},
-        # alembic's plugins directory. each plugin in it is a backend kind.
         "plugins_dir": "/etc/alembic/plugins",
         "require_distinct_approver": True,
         "plan_ttl_hours": 72,
@@ -56,12 +41,16 @@ PLUGINS_CONFIG = {
 }
 ```
 
+each setting means what it does in [netbox](netbox.md#settings). nautobot's own
+celery task time limits still apply to the jobs, so keep them above
+`run_timeout_seconds`.
+
 there is no credentials setting: a backend's token comes from its secrets group
 when the job runs, through whichever secrets provider holds it. a plugin
 backend (any kind that is an alembic plugin in `plugins_dir`) takes no secrets
-group: its plugin file is its whole config. the same
-environment rules apply as in netbox: alembic sees only the credentials of the
-backend each command talks to.
+group: its plugin file is its whole config. the same environment rules apply as
+in netbox: alembic sees only the credentials of the backend each command talks
+to.
 
 ## permissions
 

@@ -9,6 +9,7 @@
 - a failed command names what alembic's exit code means: a usage error (`64`), invalid input or a stale plan (`65`), a backend that could not be reached (`69`), or an apply that stopped partway with its journal kept (`75`)
 - `apply_run` takes no inventory files or `resuming` flag, `hosting.start_apply` returns only the plan, and `Runner.check_stale`, `StaleCheck` and `Plan.same_work` are removed
 - the docs say where a failed apply can resume: on the same worker with local state, on any worker with postgres state for the built-in backends
+- the docs keep one install text that the readmes point at, the runs page covers both hosts and lists the rest endpoints, every setting is explained (`rust_log` and `state.postgres_tls` were missing), the nautobot page says why `post_upgrade` matters, and the `alembic-runner` readme lists its modules
 - a peeringdb backend takes no config keys, as alembic's peeringdb adapter takes none. one saved with `url` or `instance` passed validation and then failed every run with "exited 65"; it is now refused when saved
 - an approved run whose target is busy with another apply stays approved, with the reason on the run, instead of failing. the resume action starts it once the target is free
 - two approved runs of different flows on one target can no longer both start applying
