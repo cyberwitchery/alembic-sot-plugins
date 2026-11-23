@@ -7,8 +7,11 @@ from pathlib import Path
 
 from alembic_runner import (
     ACTIVE,
+    BUILTIN_KINDS,
+    CONFIG_KEYS,
     STARTABLE,
     TERMINAL,
+    TOKEN_ENV,
     TRANSITIONS,
     ApplyReport,
     Backend,
@@ -135,19 +138,14 @@ class BackendTests(unittest.TestCase):
             Backend("netbox", {"url": "https://nb", "token": "t"})
 
     def test_refuses_process_control_in_config(self):
-        for key in ("command", "working_dir", "env", "backend"):
-            with self.assertRaises(BackendError, msg=key):
-                Backend("external", {key: "x"}, command="/usr/bin/adapter")
+        for kind in BUILTIN_KINDS:
+            for key in ("command", "working_dir", "env", "backend"):
+                with self.assertRaises(BackendError, msg=f"{kind} {key}"):
+                    Backend(kind, {key: "x"})
 
-    def test_external_command_comes_from_settings(self):
-        with self.assertRaises(BackendError):
-            Backend("external", {})
-        with self.assertRaises(BackendError):
-            Backend("external", {"command": "/bin/sh"}, command="/usr/bin/adapter")
-        with self.assertRaises(BackendError):
-            Backend("netbox", {}, command="/usr/bin/adapter")
-        doc = Backend("external", {"args": ["x"]}, command="/usr/bin/adapter").config_document()
-        self.assertEqual(doc["command"], "/usr/bin/adapter")
+    def test_every_builtin_kind_has_config_keys_and_a_token(self):
+        self.assertEqual(set(CONFIG_KEYS), set(BUILTIN_KINDS))
+        self.assertEqual(set(TOKEN_ENV), set(BUILTIN_KINDS))
 
     def test_peeringdb_takes_no_config(self):
         Backend("peeringdb", {})
@@ -156,8 +154,9 @@ class BackendTests(unittest.TestCase):
                 Backend("peeringdb", {key: "x"})
 
     def test_unknown_kind(self):
-        with self.assertRaises(BackendError):
-            Backend("generic", {})
+        for kind in ("generic", "external"):
+            with self.assertRaises(BackendError, msg=kind):
+                Backend(kind, {})
 
     def test_plugin_names_follow_alembic(self):
         with tempfile.TemporaryDirectory() as d:
@@ -172,13 +171,11 @@ class BackendTests(unittest.TestCase):
         Backend("lab", plugin=True)
         with self.assertRaises(BackendError):
             Backend("lab", {"setup": {}}, plugin=True)
-        with self.assertRaises(BackendError):
-            Backend("lab", plugin=True, command="/bin/sh")
 
     def test_token_env(self):
         self.assertEqual(token_env("nautobot", "t"), {"NAUTOBOT_TOKEN": "t"})
         with self.assertRaises(BackendError):
-            token_env("external", "t")
+            token_env("lab", "t")
 
     def test_state_env(self):
         self.assertEqual(StateStore().env("flow-1"), {"ALEMBIC_STATE_BACKEND": "local"})

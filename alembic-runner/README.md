@@ -23,9 +23,9 @@ the package root re-exports `runner`, `backend`, `plan`, `status` and
   printed. `check_version` refuses an alembic outside `SUPPORTED`. `Flow` is
   what a run needs from the host.
 - `backend`: `Backend` and `StateStore`, as the config file and environment
-  alembic gets. `CONFIG_KEYS` is what a stored backend may set, `token_env`
-  hands a token to a built-in adapter, `plugin_names` lists the alembic plugins
-  in a directory.
+  alembic gets. `BUILTIN_KINDS` names alembic's built-in backends, `CONFIG_KEYS`
+  is what a stored backend may set, `token_env` hands a token to a built-in
+  adapter, `plugin_names` lists the alembic plugins in a directory.
 - `plan`: `Plan`, `ApplyReport` and `DriftReport`, the documents the cli
   writes. a plan keeps its raw bytes and their sha256.
 - `status`: `RunStatus` and `TRANSITIONS`, the run state machine, with

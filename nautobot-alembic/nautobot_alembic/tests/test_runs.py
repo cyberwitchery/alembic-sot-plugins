@@ -339,9 +339,10 @@ class WorkflowTests(RunTestCase):
         self.assertEqual(cancel.call_args.args[0].pk, run.pk)
 
 
-# an alembic plugins directory with two plugins, as an admin would install them.
+# an alembic plugins directory, as an admin would install it. one plugin has the
+# name the runner's old external kind had.
 PLUGINS_DIR = tempfile.mkdtemp(prefix="nautobot-alembic-plugins-")
-for _name in ("store", "Lab"):
+for _name in ("store", "Lab", "external"):
     Path(PLUGINS_DIR, f"{_name}.yaml").write_text("backend: external\ncommand: /bin/true\n")
 PLUGINS = {"nautobot_alembic": {"plugins_dir": PLUGINS_DIR}}
 
@@ -362,7 +363,8 @@ class BackendValidationTests(TestCase):
             {"kind": "store", "config": {"setup": {"a": 1}}},
             {"kind": "store", "secrets_group": group},
             {"kind": "nope"},
-            {"kind": "external"},
+            {"kind": "external", "config": {"args": ["x"]}},
+            {"kind": "external", "secrets_group": group},
         ):
             with self.subTest(fields=fields), self.assertRaises(ValidationError):
                 self.check(**fields)
@@ -393,7 +395,9 @@ class FlowValidationTests(TestCase):
 class PluginKindTests(TestCase):
     def test_a_plugin_is_a_kind(self):
         kinds = [kind for kind, _ in settings.kind_choices()]
-        self.assertEqual(kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "lab", "store"])
+        self.assertEqual(
+            kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "external", "lab", "store"]
+        )
 
     def test_a_plugin_backend_runs_as_the_plugin(self):
         backend = settings.runner_backend(Backend(name="l", kind="lab"))

@@ -28,9 +28,10 @@ from netbox_alembic import AlembicConfig, actions, settings
 from netbox_alembic.jobs import ApplyRunJob, PlanRunJob
 from netbox_alembic.models import Backend, Flow, Run
 
-# an alembic plugins directory with two plugins, as an admin would install them.
+# an alembic plugins directory, as an admin would install it. one plugin has the
+# name the runner's old external kind had.
 PLUGINS_DIR = tempfile.mkdtemp(prefix="netbox-alembic-plugins-")
-for _name in ("store", "Lab"):
+for _name in ("store", "Lab", "external"):
     Path(PLUGINS_DIR, f"{_name}.yaml").write_text("backend: external\ncommand: /bin/true\n")
 
 PLUGIN_SETTINGS = {
@@ -455,7 +456,7 @@ class BackendValidationTests(TestCase):
             {"kind": "store", "config": {"setup": {"a": 1}}},
             {"kind": "store", "config": {"command": "/bin/sh"}},
             {"kind": "nope"},
-            {"kind": "external"},
+            {"kind": "external", "config": {"args": ["x"]}},
             {"kind": "netbox", "credential": "nope"},
         ]
         for fields in cases:
@@ -467,7 +468,9 @@ class BackendValidationTests(TestCase):
 class PluginKindTests(TestCase):
     def test_a_plugin_is_a_kind(self):
         kinds = [kind for kind, _ in settings.kind_choices()]
-        self.assertEqual(kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "lab", "store"])
+        self.assertEqual(
+            kinds, ["netbox", "nautobot", "infrahub", "peeringdb", "external", "lab", "store"]
+        )
 
     @mock.patch.dict("os.environ", {"TEST_OTHER": "secret"})
     def test_a_plugin_backend_runs_as_the_plugin(self):

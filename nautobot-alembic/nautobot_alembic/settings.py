@@ -1,8 +1,8 @@
 """app settings, and the alembic objects they resolve to."""
 
+from alembic_runner import BUILTIN_KINDS, Runner, StateStore, plugin_names, token_env
 from alembic_runner import Backend as RunnerBackend
 from alembic_runner import Flow as RunnerFlow
-from alembic_runner import Runner, StateStore, plugin_names, token_env
 from django.conf import settings
 
 
@@ -26,16 +26,6 @@ def runner():
         rust_log=setting("rust_log"),
         plugins_dir=setting("plugins_dir"),
     )
-
-
-# the backends alembic has built in, as the ui names them. every other kind is
-# an alembic plugin in plugins_dir.
-BUILTIN_KINDS = {
-    "netbox": "NetBox",
-    "nautobot": "Nautobot",
-    "infrahub": "Infrahub",
-    "peeringdb": "PeeringDB",
-}
 
 
 def kind_choices():
