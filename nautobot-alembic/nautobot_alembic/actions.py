@@ -9,8 +9,6 @@ from django.utils import timezone
 from .models import Run, RunKindChoices
 from .settings import setting
 
-S = RunStatus
-
 __all__ = [
     "ActionError",
     "approve",
@@ -124,13 +122,13 @@ def workflow_approved(run, approval_workflow):
     responses = _approvers(approval_workflow)
     with transaction.atomic():
         run = hosting.locked(run)
-        if run.status != S.AWAITING_APPROVAL.value:
+        if run.status != RunStatus.AWAITING_APPROVAL.value:
             return
         others = [r.user for r in responses if r.user_id != run.requested_by_id]
         if setting("require_distinct_approver") and not others:
             move(
                 run,
-                S.REJECTED,
+                RunStatus.REJECTED,
                 error="Only the requester approved this run; someone else has to.",
                 finished_at=timezone.now(),
             )
@@ -142,6 +140,6 @@ def workflow_denied(run, approval_workflow):
     responses = _approvers(approval_workflow)
     with transaction.atomic():
         run = hosting.locked(run)
-        if run.status != S.AWAITING_APPROVAL.value:
+        if run.status != RunStatus.AWAITING_APPROVAL.value:
             return
         hosting.reject(run, responses[-1].user if responses else None)

@@ -48,7 +48,7 @@ class RunStatusChoices(ChoiceSet):
 
 def _relative(value, field):
     value = value.strip("/")
-    if value.startswith("/") or ".." in value.split("/"):
+    if ".." in value.split("/"):
         raise ValidationError({field: "Must be a relative path inside the repository."})
     return value
 

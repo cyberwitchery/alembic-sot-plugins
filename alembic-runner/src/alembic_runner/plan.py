@@ -62,10 +62,6 @@ class Plan:
         return counts
 
     @property
-    def has_deletes(self) -> bool:
-        return any(op.get("op") == "delete" for op in self.ops)
-
-    @property
     def is_empty(self) -> bool:
         """no ops and no pending schema work: applying it would write nothing."""
         return not self.ops and not any(self.schema_preview.values())
@@ -107,7 +103,3 @@ class ApplyReport:
     @property
     def applied_count(self) -> int:
         return len(self.doc["applied"])
-
-    @property
-    def resumed_count(self) -> int:
-        return int(self.doc.get("previously_applied_count") or 0)

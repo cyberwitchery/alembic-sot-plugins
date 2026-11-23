@@ -22,37 +22,51 @@ class RunStatus(str, Enum):
     APPLY_FAILED = "apply_failed"
 
 
-S = RunStatus
-
 TRANSITIONS: dict[RunStatus, frozenset[RunStatus]] = {
-    S.PENDING: frozenset({S.PLANNING, S.FAILED, S.SUPERSEDED}),
+    RunStatus.PENDING: frozenset({RunStatus.PLANNING, RunStatus.FAILED, RunStatus.SUPERSEDED}),
     # an edit to the flow supersedes a run before it applies; see hosting.EDIT_SUPERSEDES.
-    S.PLANNING: frozenset({S.NO_CHANGES, S.DRIFTED, S.AWAITING_APPROVAL, S.FAILED, S.SUPERSEDED}),
-    S.AWAITING_APPROVAL: frozenset({S.APPROVED, S.REJECTED, S.SUPERSEDED, S.EXPIRED}),
-    S.APPROVED: frozenset({S.APPLYING, S.FAILED, S.SUPERSEDED}),
-    S.APPLYING: frozenset({S.APPLIED, S.STALE, S.APPLY_FAILED}),
+    RunStatus.PLANNING: frozenset(
+        {
+            RunStatus.NO_CHANGES,
+            RunStatus.DRIFTED,
+            RunStatus.AWAITING_APPROVAL,
+            RunStatus.FAILED,
+            RunStatus.SUPERSEDED,
+        }
+    ),
+    RunStatus.AWAITING_APPROVAL: frozenset(
+        {RunStatus.APPROVED, RunStatus.REJECTED, RunStatus.SUPERSEDED, RunStatus.EXPIRED}
+    ),
+    RunStatus.APPROVED: frozenset({RunStatus.APPLYING, RunStatus.FAILED, RunStatus.SUPERSEDED}),
+    RunStatus.APPLYING: frozenset({RunStatus.APPLIED, RunStatus.STALE, RunStatus.APPLY_FAILED}),
     # a failed apply leaves a journal behind: re-running the same plan resumes it.
     # a newer plan for the flow takes that option away.
-    S.APPLY_FAILED: frozenset({S.APPLYING, S.SUPERSEDED}),
+    RunStatus.APPLY_FAILED: frozenset({RunStatus.APPLYING, RunStatus.SUPERSEDED}),
 }
 
-TERMINAL = frozenset(s for s in RunStatus if s not in TRANSITIONS)
-
 # at most one run per flow is in one of these; hosts enforce it in the database.
-ACTIVE = frozenset({S.PENDING, S.PLANNING, S.AWAITING_APPROVAL, S.APPROVED, S.APPLYING})
+ACTIVE = frozenset(
+    {
+        RunStatus.PENDING,
+        RunStatus.PLANNING,
+        RunStatus.AWAITING_APPROVAL,
+        RunStatus.APPROVED,
+        RunStatus.APPLYING,
+    }
+)
 
 # an apply job starts from these: an approval, or a failed apply it resumes.
-STARTABLE = frozenset({S.APPROVED, S.APPLY_FAILED})
+STARTABLE = frozenset({RunStatus.APPROVED, RunStatus.APPLY_FAILED})
 
 
 def failure_status(current: RunStatus | str) -> RunStatus | None:
     """where a run goes when its job fails: a failed plan is over, a failed apply
     can be resumed, and a run no job was working on stays as it is."""
     current = RunStatus(current)
-    if current in (S.PENDING, S.PLANNING, S.APPROVED):
-        return S.FAILED
-    if current is S.APPLYING:
-        return S.APPLY_FAILED
+    if current in (RunStatus.PENDING, RunStatus.PLANNING, RunStatus.APPROVED):
+        return RunStatus.FAILED
+    if current is RunStatus.APPLYING:
+        return RunStatus.APPLY_FAILED
     return None
 
 

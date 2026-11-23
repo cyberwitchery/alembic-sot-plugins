@@ -10,7 +10,6 @@ from alembic_runner import (
     BUILTIN_KINDS,
     CONFIG_KEYS,
     STARTABLE,
-    TERMINAL,
     TOKEN_ENV,
     TRANSITIONS,
     ApplyReport,
@@ -31,8 +30,6 @@ from alembic_runner import (
 )
 from alembic_runner.review import deferred
 
-S = RunStatus
-
 
 def plan_bytes(ops, schema_preview=None):
     doc = {"schema": {"types": {}}, "ops": ops}
@@ -44,42 +41,55 @@ def plan_bytes(ops, schema_preview=None):
 CREATE = {"op": "create", "uid": "u1", "type_name": "dcim.site", "desired": {}}
 DELETE = {"op": "delete", "uid": "u2", "type_name": "dcim.site", "key": {}, "backend_id": 4}
 
+FINAL = ("no_changes", "drifted", "failed", "rejected", "superseded", "expired", "applied", "stale")
+
 
 class StatusTests(unittest.TestCase):
     def test_happy_path(self):
-        path = [S.PENDING, S.PLANNING, S.AWAITING_APPROVAL, S.APPROVED, S.APPLYING, S.APPLIED]
+        path = [
+            RunStatus.PENDING,
+            RunStatus.PLANNING,
+            RunStatus.AWAITING_APPROVAL,
+            RunStatus.APPROVED,
+            RunStatus.APPLYING,
+            RunStatus.APPLIED,
+        ]
         for current, new in zip(path, path[1:], strict=False):
             self.assertEqual(check_transition(current, new), new)
 
     def test_accepts_strings(self):
-        self.assertEqual(check_transition("planning", "failed"), S.FAILED)
+        self.assertEqual(check_transition("planning", "failed"), RunStatus.FAILED)
 
     def test_refuses_skipping_approval(self):
         with self.assertRaises(TransitionError):
-            check_transition(S.AWAITING_APPROVAL, S.APPLYING)
+            check_transition(RunStatus.AWAITING_APPROVAL, RunStatus.APPLYING)
 
     def test_terminal_states_are_final(self):
-        for status in TERMINAL:
+        for status in FINAL:
             for new in RunStatus:
                 with self.assertRaises(TransitionError):
                     check_transition(status, new)
 
     def test_resume_after_failed_apply(self):
-        self.assertEqual(check_transition(S.APPLY_FAILED, S.APPLYING), S.APPLYING)
+        self.assertEqual(
+            check_transition(RunStatus.APPLY_FAILED, RunStatus.APPLYING), RunStatus.APPLYING
+        )
 
     def test_failure_status_follows_the_phase(self):
-        self.assertEqual(failure_status(S.PLANNING), S.FAILED)
-        self.assertEqual(failure_status(S.APPROVED), S.FAILED)
-        self.assertEqual(failure_status(S.APPLYING), S.APPLY_FAILED)
-        self.assertIsNone(failure_status(S.AWAITING_APPROVAL))
-        for status in TERMINAL:
+        self.assertEqual(failure_status(RunStatus.PLANNING), RunStatus.FAILED)
+        self.assertEqual(failure_status(RunStatus.APPROVED), RunStatus.FAILED)
+        self.assertEqual(failure_status(RunStatus.APPLYING), RunStatus.APPLY_FAILED)
+        self.assertIsNone(failure_status(RunStatus.AWAITING_APPROVAL))
+        for status in FINAL:
             self.assertIsNone(failure_status(status))
 
-    def test_active_runs_are_not_terminal(self):
-        self.assertFalse(ACTIVE & TERMINAL)
+    def test_an_active_run_can_move_on(self):
+        self.assertLessEqual(ACTIVE, set(TRANSITIONS))
 
     def test_an_apply_starts_from_an_approval_or_a_failed_apply(self):
-        self.assertEqual(STARTABLE, {s for s, moves in TRANSITIONS.items() if S.APPLYING in moves})
+        self.assertEqual(
+            STARTABLE, {s for s, moves in TRANSITIONS.items() if RunStatus.APPLYING in moves}
+        )
         self.assertIn("approved", STARTABLE)
 
     def test_an_approved_run_with_a_reason_waits_to_be_started(self):
@@ -92,7 +102,6 @@ class PlanTests(unittest.TestCase):
     def test_summary_counts_ops(self):
         plan = Plan.from_bytes(plan_bytes([CREATE, DELETE]))
         self.assertEqual(plan.summary(), {"create": 1, "update": 0, "delete": 1})
-        self.assertTrue(plan.has_deletes)
         self.assertFalse(plan.is_empty)
 
     def test_empty(self):
@@ -123,7 +132,7 @@ class PlanTests(unittest.TestCase):
 
     def test_apply_report(self):
         report = ApplyReport.from_bytes(b'{"applied": [{}], "previously_applied_count": 2}')
-        self.assertEqual((report.applied_count, report.resumed_count), (1, 2))
+        self.assertEqual(report.applied_count, 1)
         with self.assertRaises(DocumentError):
             ApplyReport.from_bytes(b"{}")
 

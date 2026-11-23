@@ -11,8 +11,6 @@ from nautobot.apps.jobs import Job, StringVar, register_jobs
 from .models import Run, RunKindChoices
 from .settings import SettingsError, runner, runner_flow
 
-S = RunStatus
-
 
 def flow_files(flow, logger):
     """the flow's files as the repository holds them after a pull, keyed by their
@@ -59,7 +57,7 @@ class PlanRun(RunJob):
         description = "Plan a flow's inventory against its target."
 
     def execute(self, run):
-        hosting.transition(run, S.PLANNING)
+        hosting.transition(run, RunStatus.PLANNING)
         r = runner()
         version = r.check_version()
         Run.objects.filter(pk=run.pk).update(alembic_version=version)
@@ -75,7 +73,7 @@ class PlanRun(RunJob):
             self.logger,
         )
         hosting.settle(run, outcome, planned_at=timezone.now())
-        if run.status == S.AWAITING_APPROVAL.value:
+        if run.status == RunStatus.AWAITING_APPROVAL.value:
             # a matching approval workflow takes the decision; without one the
             # app's own approve action does.
             workflow = run.begin_approval_workflow()

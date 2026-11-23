@@ -48,7 +48,7 @@ jobs:
             | tar -xz --strip-components=1 -C "$HOME/.local/bin" "${name}/alembic"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: install
-        run: pip install -e "alembic-runner[dev]" alembic-adapter-sdk
+        run: pip install -e "alembic-runner[dev]"
       - name: test
         working-directory: alembic-runner
         run: |
