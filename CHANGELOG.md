@@ -15,6 +15,7 @@
 - two approved runs of different flows on one target can no longer both start applying
 - a flow cannot both allow deletes and refuse adoption. alembic refuses that pair, so every plan of such a flow exited `64`; it is now refused when saved
 - nautobot: a partial api update of a backend, such as a `PATCH` of its description, no longer fails validation
+- a backend of a plugin named `external` that sets config, or on nautobot a secrets group, is refused when saved, as for any other plugin. both used to be accepted and then ignored by every run. `alembic-runner` drops the leftover `external` kind and `Backend.command`, and exports `BUILTIN_KINDS` in place of `KINDS`
 
 ## [0.3.0] - 2026-10-26
 

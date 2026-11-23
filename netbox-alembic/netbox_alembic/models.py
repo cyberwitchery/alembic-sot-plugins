@@ -1,4 +1,4 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus, hosting
+from alembic_runner import ACTIVE, BUILTIN_KINDS, CONFIG_KEYS, RunStatus, hosting
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -89,7 +89,7 @@ class Backend(NetBoxModel):
             raise ValidationError({"config": _("Config must be a mapping.")})
         if self.kind not in dict(kind_choices()):
             raise ValidationError({"kind": _("No built-in kind or alembic plugin by that name.")})
-        if self.kind not in CONFIG_KEYS and self.config:
+        if self.kind not in BUILTIN_KINDS and self.config:
             raise ValidationError(
                 {"config": _("A plugin backend takes no config: its plugin file is its config.")}
             )

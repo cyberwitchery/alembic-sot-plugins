@@ -91,18 +91,26 @@ class PipelineTests(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
         self.store = self.tmp / "store.json"
-        self.runner = Runner(self.tmp / "work", alembic_path=ALEMBIC, timeout=60)
+        self.plugins = self.tmp / "plugins"
+        self.plugins.mkdir()
+        self.runner = Runner(
+            self.tmp / "work", alembic_path=ALEMBIC, timeout=60, plugins_dir=self.plugins
+        )
         self.runner.check_version()
         self.flow = Flow("1", self.store_backend(self.store))
         self.files = {"inv.yaml": INVENTORY}
 
-    @staticmethod
-    def store_backend(path):
-        return Backend(
-            "external",
-            {"args": [str(FIXTURES / "store_adapter.py")], "setup": {"path": str(path)}},
-            command=sys.executable,
-        )
+    def store_backend(self, path):
+        """an alembic plugin named for `path`, over the store adapter keeping its
+        objects in `path`."""
+        plugin = {
+            "backend": "external",
+            "command": sys.executable,
+            "args": [str(FIXTURES / "store_adapter.py")],
+            "setup": {"path": str(path)},
+        }
+        (self.plugins / f"{path.stem}.yaml").write_text(json.dumps(plugin))
+        return Backend(path.stem.lower(), plugin=True)
 
     def plan(self, run, drift=False, flow=None, files=None, entry="inv.yaml", map_spec=""):
         return plan_run(
@@ -168,24 +176,12 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(list(planned.fields["input"]), [DERIVED_ENTRY])
 
     def test_a_plugin_backend_runs_by_name(self):
-        plugins = self.tmp / "plugins"
-        plugins.mkdir()
-        (plugins / "Store.yaml").write_text(
-            json.dumps(
-                {
-                    "backend": "external",
-                    "command": sys.executable,
-                    "args": [str(FIXTURES / "store_adapter.py")],
-                    "setup": {"path": str(self.tmp / "plugin-store.json")},
-                }
-            )
-        )
-        self.runner.plugins_dir = str(plugins)
-        self.flow = Flow("3", Backend("store", plugin=True))
+        self.flow = Flow("3", self.store_backend(self.tmp / "Lab.json"))
+        self.assertEqual(self.flow.target.kind, "lab")
         planned = self.plan("1")
         self.assertEqual(planned.status, S.AWAITING_APPROVAL, planned.fields.get("error"))
         self.assertEqual(self.apply("1", planned).status, S.APPLIED)
-        self.assertTrue((self.tmp / "plugin-store.json").exists())
+        self.assertTrue((self.tmp / "Lab.json").exists())
         self.assertEqual(self.plan("2").status, S.NO_CHANGES)
 
     def test_a_map_spec_is_relative_to_the_root(self):

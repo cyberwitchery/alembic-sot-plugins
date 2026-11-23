@@ -6,7 +6,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-KINDS = ("netbox", "nautobot", "infrahub", "peeringdb", "external")
+# the backends alembic has built in, as a ui names them. every other kind is an
+# alembic plugin.
+BUILTIN_KINDS = {
+    "netbox": "NetBox",
+    "nautobot": "Nautobot",
+    "infrahub": "Infrahub",
+    "peeringdb": "PeeringDB",
+}
 
 # the config keys a stored backend may set. anything that names a command, a
 # working directory or an environment for a process stays in host settings:
@@ -16,7 +23,6 @@ CONFIG_KEYS = {
     "nautobot": frozenset({"url", "instance"}),
     "infrahub": frozenset({"url", "instance"}),
     "peeringdb": frozenset(),
-    "external": frozenset({"args", "setup", "timeout_seconds", "instance"}),
 }
 
 # the environment variable each built-in adapter reads its credential from.
@@ -56,24 +62,22 @@ class Backend:
     """one backend as a run sees it.
 
     `config` is the non-secret part of an alembic backend config, without the
-    `backend:` key. `env` holds the credentials, by variable name. an external
-    backend's `command` comes from host settings, never from stored config.
-    a `plugin` backend is an alembic plugin, named by `kind`: its plugin file is
-    its whole config.
+    `backend:` key. `env` holds the credentials, by variable name. a `plugin`
+    backend is an alembic plugin, named by `kind`: its plugin file is its whole
+    config.
     """
 
     kind: str
     config: dict[str, Any] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
-    command: str | None = None
     plugin: bool = False
 
     def __post_init__(self) -> None:
         if self.plugin:
-            if not self.kind or self.config or self.command:
-                raise BackendError(f"plugin backend {self.kind!r} takes no config or command")
+            if not self.kind or self.config:
+                raise BackendError(f"plugin backend {self.kind!r} takes no config")
             return
-        if self.kind not in KINDS:
+        if self.kind not in BUILTIN_KINDS:
             raise BackendError(f"unknown backend kind {self.kind!r}")
         unknown = self.config.keys() - CONFIG_KEYS[self.kind]
         if unknown:
@@ -81,17 +85,9 @@ class Backend:
                 f"a {self.kind} backend config cannot set {', '.join(sorted(unknown))}; "
                 f"it takes {', '.join(sorted(CONFIG_KEYS[self.kind]))}"
             )
-        if self.kind == "external":
-            if not self.command:
-                raise BackendError("an external backend needs a command from host settings")
-        elif self.command:
-            raise BackendError(f"a {self.kind} backend takes no command")
 
     def config_document(self) -> dict[str, Any]:
-        doc = {"backend": self.kind, **self.config}
-        if self.command:
-            doc["command"] = self.command
-        return doc
+        return {"backend": self.kind, **self.config}
 
 
 def token_env(kind: str, token: str) -> dict[str, str]:

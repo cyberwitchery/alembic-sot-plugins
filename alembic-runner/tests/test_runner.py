@@ -181,16 +181,27 @@ class RealBinaryTests(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
         self.store = self.tmp / "store.json"
-        self.runner = Runner(self.tmp / "work", alembic_path=ALEMBIC, timeout=60)
-        self.runner.check_version()
-        target = Backend(
-            "external",
-            {"args": [str(FIXTURES / "store_adapter.py")], "setup": {"path": str(self.store)}},
-            command=sys.executable,
+        self.plugins = self.tmp / "plugins"
+        self.plugins.mkdir()
+        self.runner = Runner(
+            self.tmp / "work", alembic_path=ALEMBIC, timeout=60, plugins_dir=self.plugins
         )
-        self.flow = Flow("1", target)
+        self.runner.check_version()
+        self.flow = Flow("1", self.store_backend(self.store))
         ws = self.runner.workspace(self.flow)
         self.inventory = ws.write_input("1", {"inv.yaml": INVENTORY}, "inv.yaml")
+
+    def store_backend(self, path):
+        """an alembic plugin named for `path`, over the store adapter keeping its
+        objects in `path`."""
+        plugin = {
+            "backend": "external",
+            "command": sys.executable,
+            "args": [str(FIXTURES / "store_adapter.py")],
+            "setup": {"path": str(path)},
+        }
+        (self.plugins / f"{path.stem}.yaml").write_text(json.dumps(plugin))
+        return Backend(path.stem.lower(), plugin=True)
 
     def edit_store(self, name):
         store = json.loads(self.store.read_text())
@@ -235,16 +246,7 @@ class RealBinaryTests(unittest.TestCase):
         # the flow's own target starts out converged; a second flow reads it as
         # its source and plans the same objects into an empty store.
         self.runner.apply(self.flow, "1", *self._plan("1"))
-        other = self.tmp / "other.json"
-        flow = Flow(
-            "2",
-            Backend(
-                "external",
-                {"args": [str(FIXTURES / "store_adapter.py")], "setup": {"path": str(other)}},
-                command=sys.executable,
-            ),
-            source=self.flow.target,
-        )
+        flow = Flow("2", self.store_backend(self.tmp / "other.json"), source=self.flow.target)
         imported = self.runner.import_(flow, "1", self.inventory)
         self.assertIsNone(imported.error, imported.completed.stderr)
         doc = json.loads(imported.inventory.read_text())
@@ -306,8 +308,6 @@ class ConfigKeyTests(unittest.TestCase):
 
     def test_every_allowed_key_parses(self):
         for kind, keys in CONFIG_KEYS.items():
-            if kind == "external":
-                continue
             # an unreachable url: the run stops after the config is read.
             config = {"backend": kind, **{key: "http://127.0.0.1:9" for key in keys}}
             done = self.plan(config)

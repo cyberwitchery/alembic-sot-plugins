@@ -1,8 +1,8 @@
 """run alembic plan, review and apply from a host application."""
 
 from .backend import (
+    BUILTIN_KINDS,
     CONFIG_KEYS,
-    KINDS,
     TOKEN_ENV,
     Backend,
     BackendError,
@@ -38,8 +38,8 @@ __version__ = "0.3.0"
 
 __all__ = [
     "ACTIVE",
+    "BUILTIN_KINDS",
     "CONFIG_KEYS",
-    "KINDS",
     "STARTABLE",
     "SUPPORTED",
     "TERMINAL",

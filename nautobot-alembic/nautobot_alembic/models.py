@@ -1,4 +1,4 @@
-from alembic_runner import ACTIVE, CONFIG_KEYS, RunStatus, hosting
+from alembic_runner import ACTIVE, BUILTIN_KINDS, CONFIG_KEYS, RunStatus, hosting
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -93,7 +93,7 @@ class Backend(PrimaryModel):
             raise ValidationError({"config": "Config must be a mapping."})
         if self.kind not in dict(kind_choices()):
             raise ValidationError({"kind": "No built-in kind or alembic plugin by that name."})
-        if self.kind not in CONFIG_KEYS:
+        if self.kind not in BUILTIN_KINDS:
             # a plugin's file is its whole config, its environment included.
             if self.config:
                 raise ValidationError(
