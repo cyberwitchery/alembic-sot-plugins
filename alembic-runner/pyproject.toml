@@ -26,7 +26,7 @@ Repository = "https://github.com/cyberwitchery/alembic-sot-plugins"
 "alembic (core)" = "https://github.com/cyberwitchery/alembic"
 
 [project.optional-dependencies]
-dev = ["coverage[toml]", "ruff"]
+dev = ["alembic-adapter-sdk", "coverage[toml]", "ruff"]
 
 [tool.hatch.build.targets.wheel]
 exclude = ["tests"]
@@ -44,4 +44,5 @@ source = ["alembic_runner"]
 branch = true
 
 [tool.coverage.report]
+fail_under = 71
 show_missing = true

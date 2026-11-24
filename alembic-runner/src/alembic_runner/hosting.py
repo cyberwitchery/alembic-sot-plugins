@@ -21,13 +21,16 @@ from .pipeline import Outcome, RunFailed, approved_plan
 from .plan import Plan
 from .status import STARTABLE, RunStatus, TransitionError, check_transition, failure_status
 
-S = RunStatus
-
 # a new plan of a flow takes these runs' place.
-SUPERSEDABLE = (S.AWAITING_APPROVAL.value, S.APPLY_FAILED.value)
+SUPERSEDABLE = (RunStatus.AWAITING_APPROVAL.value, RunStatus.APPLY_FAILED.value)
 # an edit to a flow takes the place of every run not applying yet: each was
 # planned, or approved, for the flow as it was.
-EDIT_SUPERSEDES = (S.PENDING.value, S.PLANNING.value, S.APPROVED.value, *SUPERSEDABLE)
+EDIT_SUPERSEDES = (
+    RunStatus.PENDING.value,
+    RunStatus.PLANNING.value,
+    RunStatus.APPROVED.value,
+    *SUPERSEDABLE,
+)
 
 
 class ActionError(ValidationError):
@@ -73,7 +76,7 @@ def supersede_runs(model, flow, statuses, retire: Callable = lambda run: None) -
     first. call inside a transaction."""
     for run in model.objects.select_for_update().filter(flow=flow, status__in=statuses):
         retire(run)
-        move(run, S.SUPERSEDED, finished_at=timezone.now())
+        move(run, RunStatus.SUPERSEDED, finished_at=timezone.now())
 
 
 def create_run(model, flow, user, kind: str, supersede: bool, retire: Callable = lambda run: None):
@@ -113,11 +116,11 @@ def approve(run, user, ttl_hours: int | None) -> bool:
     """move a locked, waiting run to approved, or to expired when its plan is too
     old. returns whether it was approved; the caller queues the apply."""
     if expired(run, ttl_hours):
-        move(run, S.EXPIRED, finished_at=timezone.now())
+        move(run, RunStatus.EXPIRED, finished_at=timezone.now())
         return False
     move(
         run,
-        S.APPROVED,
+        RunStatus.APPROVED,
         decided_by=user,
         decided_at=timezone.now(),
         approved_sha256=run.plan_sha256,
@@ -127,7 +130,7 @@ def approve(run, user, ttl_hours: int | None) -> bool:
 
 def reject(run, user):
     now = timezone.now()
-    return move(run, S.REJECTED, decided_by=user, decided_at=now, finished_at=now)
+    return move(run, RunStatus.REJECTED, decided_by=user, decided_at=now, finished_at=now)
 
 
 def check_resumable(run, user) -> None:
@@ -161,7 +164,7 @@ def fail(run, message: str, output: str = "") -> None:
     with transaction.atomic():
         run = locked(run)
         new = failure_status(run.status)
-        if new is S.FAILED:
+        if new is RunStatus.FAILED:
             fields["finished_at"] = timezone.now()
         if new is not None:
             move(run, new, **fields)
@@ -172,7 +175,7 @@ def defer(run, message: str) -> None:
     reason; a failed apply keeps the error it failed with."""
     with transaction.atomic():
         run = locked(run)
-        if run.status == S.APPROVED.value:
+        if run.status == RunStatus.APPROVED.value:
             run.error = message
             _save(run)
 
@@ -215,7 +218,7 @@ def start_apply(run) -> Plan:
         # different flows cannot both find it free.
         locked(target)
         busy = (
-            model.objects.filter(flow__target=target, status=S.APPLYING.value)
+            model.objects.filter(flow__target=target, status=RunStatus.APPLYING.value)
             .exclude(pk=run.pk)
             .select_for_update()
         )
@@ -225,7 +228,7 @@ def start_apply(run) -> Plan:
         plan = approved_plan(current.plan, current.approved_sha256)
         move(
             current,
-            S.APPLYING,
+            RunStatus.APPLYING,
             apply_started_at=current.apply_started_at or timezone.now(),
             error="",
         )

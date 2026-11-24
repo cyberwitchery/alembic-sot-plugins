@@ -25,7 +25,6 @@ from .runner import (
 from .status import (
     ACTIVE,
     STARTABLE,
-    TERMINAL,
     TRANSITIONS,
     RunStatus,
     TransitionError,
@@ -42,7 +41,6 @@ __all__ = [
     "CONFIG_KEYS",
     "STARTABLE",
     "SUPPORTED",
-    "TERMINAL",
     "TOKEN_ENV",
     "TRANSITIONS",
     "ApplyOutcome",

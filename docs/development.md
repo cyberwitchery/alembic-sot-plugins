@@ -13,7 +13,7 @@ dev/nautobot-e2e.sh                         # the same end to end, plus an appro
 the core's tests run the real cli against a json-file adapter:
 
 ```sh
-pip install -e "alembic-runner[dev]" alembic-adapter-sdk
+pip install -e "alembic-runner[dev]"
 cd alembic-runner && python -m unittest discover -s tests
 ```
 

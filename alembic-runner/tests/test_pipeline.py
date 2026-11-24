@@ -21,7 +21,6 @@ from alembic_runner.runner import Completed
 
 FIXTURES = Path(__file__).parent / "fixtures"
 LOG = logging.getLogger("test")
-S = RunStatus
 
 INVENTORY = """\
 schema:
@@ -139,13 +138,13 @@ class PipelineTests(unittest.TestCase):
 
     def test_plan_then_apply(self):
         planned = self.plan("1")
-        self.assertEqual(planned.status, S.AWAITING_APPROVAL)
+        self.assertEqual(planned.status, RunStatus.AWAITING_APPROVAL)
         self.assertFalse(planned.finished)
         applied = self.apply("1", planned)
-        self.assertEqual(applied.status, S.APPLIED)
+        self.assertEqual(applied.status, RunStatus.APPLIED)
         self.assertIn("$ alembic apply", applied.fields["output"])
-        self.assertEqual(self.plan("2").status, S.NO_CHANGES)
-        self.assertEqual(self.plan("3", drift=True).status, S.NO_CHANGES)
+        self.assertEqual(self.plan("2").status, RunStatus.NO_CHANGES)
+        self.assertEqual(self.plan("3", drift=True).status, RunStatus.NO_CHANGES)
 
     def test_a_changed_target_is_stale(self):
         planned = self.plan("1")
@@ -164,14 +163,14 @@ class PipelineTests(unittest.TestCase):
             )
         )
         outcome = self.apply("1", planned)
-        self.assertEqual(outcome.status, S.STALE)
+        self.assertEqual(outcome.status, RunStatus.STALE)
         self.assertIn("plan again", outcome.fields["error"])
 
     def test_a_source_is_imported_and_kept(self):
         self.apply("1", self.plan("1"))
         mirror = Flow("2", self.store_backend(self.tmp / "mirror.json"), source=self.flow.target)
         planned = self.plan("1", flow=mirror)
-        self.assertEqual(planned.status, S.AWAITING_APPROVAL)
+        self.assertEqual(planned.status, RunStatus.AWAITING_APPROVAL)
         self.assertEqual(planned.fields["input_entry"], DERIVED_ENTRY)
         self.assertEqual(list(planned.fields["input"]), [DERIVED_ENTRY])
 
@@ -179,15 +178,15 @@ class PipelineTests(unittest.TestCase):
         self.flow = Flow("3", self.store_backend(self.tmp / "Lab.json"))
         self.assertEqual(self.flow.target.kind, "lab")
         planned = self.plan("1")
-        self.assertEqual(planned.status, S.AWAITING_APPROVAL, planned.fields.get("error"))
-        self.assertEqual(self.apply("1", planned).status, S.APPLIED)
+        self.assertEqual(planned.status, RunStatus.AWAITING_APPROVAL, planned.fields.get("error"))
+        self.assertEqual(self.apply("1", planned).status, RunStatus.APPLIED)
         self.assertTrue((self.tmp / "Lab.json").exists())
-        self.assertEqual(self.plan("2").status, S.NO_CHANGES)
+        self.assertEqual(self.plan("2").status, RunStatus.NO_CHANGES)
 
     def test_a_map_spec_is_relative_to_the_root(self):
         files = {"schemas/inv.yaml": INVENTORY, "maps/sites.yaml": MAP}
         planned = self.plan("1", files=files, entry="schemas/inv.yaml", map_spec="maps/sites.yaml")
-        self.assertEqual(planned.status, S.AWAITING_APPROVAL, planned.fields.get("error"))
+        self.assertEqual(planned.status, RunStatus.AWAITING_APPROVAL, planned.fields.get("error"))
         derived = json.loads(planned.fields["input"][DERIVED_ENTRY])
         self.assertEqual(
             [o["attrs"] for o in derived["objects"]], [{"name": "m-fra1", "slug": "fra1"}]

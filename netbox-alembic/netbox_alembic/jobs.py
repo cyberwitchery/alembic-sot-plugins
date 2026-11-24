@@ -9,8 +9,6 @@ from netbox.jobs import JobRunner
 from .models import Run, RunKindChoices
 from .settings import SettingsError, runner, runner_flow
 
-S = RunStatus
-
 
 def flow_files(flow, logger):
     """the flow's files as the data source holds them after a sync, keyed by
@@ -43,7 +41,7 @@ class PlanRunJob(RunJob):
         name = "alembic plan"
 
     def execute(self, run):
-        hosting.transition(run, S.PLANNING)
+        hosting.transition(run, RunStatus.PLANNING)
         r = runner()
         version = r.check_version()
         Run.objects.filter(pk=run.pk).update(alembic_version=version)

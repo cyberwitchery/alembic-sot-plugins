@@ -186,7 +186,7 @@ class Flow(NetBoxModel):
         super().clean()
         for field in ("root", "inventory", "map_spec"):
             value = getattr(self, field).strip("/")
-            if value.startswith("/") or ".." in value.split("/"):
+            if ".." in value.split("/"):
                 raise ValidationError({field: _("Must be a relative path inside the data source.")})
             setattr(self, field, value)
         if not self.inventory:
@@ -292,7 +292,3 @@ class Run(JobsMixin, ChangeLoggedModel):
 
     def get_kind_color(self):
         return RunKindChoices.colors.get(self.kind)
-
-    @property
-    def status_enum(self):
-        return RunStatus(self.status)

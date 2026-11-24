@@ -17,8 +17,6 @@ from .plan import Plan
 from .runner import Completed, Flow, Runner
 from .status import RunStatus
 
-S = RunStatus
-
 SNAPSHOT_LIMIT = 20 << 20
 
 # what a run keeps when an import or a map produced its inventory.
@@ -145,7 +143,7 @@ def plan_run(
         report = outcome.report
         logger.info(f"drift: {report.counts()}")
         return Outcome(
-            S.DRIFTED if report.has_drift else S.NO_CHANGES,
+            RunStatus.DRIFTED if report.has_drift else RunStatus.NO_CHANGES,
             {"drift_report": report.doc, "summary": report.counts(), "output": output, **common},
         )
 
@@ -163,8 +161,8 @@ def plan_run(
         **common,
     }
     if plan.is_empty:
-        return Outcome(S.NO_CHANGES, fields)
-    return Outcome(S.AWAITING_APPROVAL, fields, finished=False)
+        return Outcome(RunStatus.NO_CHANGES, fields)
+    return Outcome(RunStatus.AWAITING_APPROVAL, fields, finished=False)
 
 
 def approved_plan(plan_text: str, approved_sha256: str) -> Plan:
@@ -191,14 +189,14 @@ def apply_run(
     if outcome.stale:
         logger.info("stale check: the target changed")
         return Outcome(
-            S.STALE,
+            RunStatus.STALE,
             {"output": output, "error": "The target changed since this plan was made; plan again."},
         )
     if outcome.error:
         raise failed(outcome, output)
     logger.info(f"applied {outcome.report.applied_count} operations")
     return Outcome(
-        S.APPLIED,
+        RunStatus.APPLIED,
         {
             "apply_report": outcome.report.doc,
             "output": output,
